@@ -1,0 +1,30 @@
+{
+    "name": "webnovel-to-epub",
+    "version": "1.0.0",
+    "description": "",
+    "main": "index.js",
+    "scripts": {
+        "test": "rimraf ./out && tsc && node out/main.js"
+    },
+    "keywords": [],
+    "author": "",
+    "license": "ISC",
+    "type": "module",
+    "devDependencies": {
+        "@types/inquirer": "^9.0.7",
+        "@types/node": "^20.14.9",
+        "@types/progress": "^2.0.7",
+        "tslib": "^2.6.3"
+    },
+    "dependencies": {
+        "@supercharge/promise-pool": "^3.2.0",
+        "downloads-folder": "^3.0.3",
+        "epub-gen": "^0.1.0",
+        "inquirer": "^9.3.4",
+        "inquirer-file-tree-selection-prompt": "^2.0.5",
+        "progress": "^2.0.3",
+        "puppeteer": "^21.11.0",
+        "puppeteer-real-browser": "^1.2.18",
+        "url-regex": "^5.0.0"
+    }
+}
