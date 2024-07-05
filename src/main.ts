@@ -14,12 +14,10 @@ import { findCorrectParser } from "./parser.js";
 /*
 TODO:
 - add validation for invalid JSON files
+- update readme
 - add combining two JSON webnovel contents
-- add error handling across the board
 - add more parsers
-- make pretty logging, dedicated classes
 - add support for manga
-- add readme
 - add comments
 */
 
@@ -91,19 +89,6 @@ async function jsonToEpub() {
     }
 
     await connectionInfo.browser.close();
-}
-
-async function test() {
-    let connectionInfo = await makeNewConnection();
-
-    let parser = findCorrectParser("https://woopread.com");
-
-    let chapter = await parser.getChapterContent(connectionInfo.page, {
-        url: "https://woopread.com/series/i-was-mistaken-as-a-monstrous-genius-actor/chapter-36/",
-        title: "Chapter 36",
-    });
-
-    console.log(chapter);
 }
 
 main();
