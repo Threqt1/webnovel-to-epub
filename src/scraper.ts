@@ -3,9 +3,12 @@ import { PromisePool } from "@supercharge/promise-pool";
 import { writeFile } from "fs/promises";
 import { join } from "path";
 import { sanitizeFilename } from "./strings.js";
-import { SerializableWebnovel } from "./json.js";
+import { ChapterWithContent, SerializableWebnovel } from "./json.js";
 import { findCorrectParser } from "./parser.js";
 import ProgressBar from "progress";
+import chalk from "chalk";
+
+const MAX_TRIES = 3;
 
 export type PuppeteerConnectionInfo = {
     page: Page;
@@ -30,21 +33,26 @@ export async function makeNewConnection(
 }
 
 export async function createNewPage(
-    connectionInfo: PuppeteerConnectionInfo
+    connectionInfo: PuppeteerConnectionInfo,
+    allowImg: boolean = true
 ): Promise<Page> {
     connectionInfo.setTarget({ status: false });
     let newPage = await connectionInfo.browser.newPage();
-    await setupPage(newPage);
+    await setupPage(newPage, allowImg);
     connectionInfo.setTarget({ status: true });
     return newPage;
 }
 
-export async function setupPage(page: Page): Promise<void> {
+export async function setupPage(
+    page: Page,
+    allowImg: boolean = true
+): Promise<void> {
     await page.setRequestInterception(true);
     page.on("request", async (req) => {
         if (
             req.resourceType() === "stylesheet" ||
-            req.resourceType() === "font"
+            req.resourceType() === "font" ||
+            (!allowImg && req.resourceType() === "media")
         ) {
             req.abort();
         } else {
@@ -53,7 +61,6 @@ export async function setupPage(page: Page): Promise<void> {
     });
 }
 
-const MAX_TRIES = 3;
 export async function downloadImageLocally(
     connectionInfo: PuppeteerConnectionInfo,
     url: string,
@@ -87,45 +94,72 @@ export async function downloadImageLocally(
 export async function scrapeWebnovel(
     url: string,
     connectionInfo: PuppeteerConnectionInfo,
-    concurrency: number
+    concurrency: number,
+    timeout: number
 ): Promise<SerializableWebnovel> {
     let parser = findCorrectParser(url);
-    if (!parser) throw new Error("Parser not implemented for the url: " + url);
-    await parser.initialize(url, connectionInfo);
+    if (!parser)
+        throw new Error(
+            `${chalk.red(
+                "[ERROR]"
+            )} parser not implemented for the url: ${chalk.dim(url)}`
+        );
+
+    console.log(`${chalk.blue("[LOG]")} beginning to parse ${chalk.dim(url)}`);
+    await parser.initialize(url, connectionInfo, timeout);
 
     let title = await parser.getTitle();
     let author = await parser.getAuthor();
     let coverImageLink = await parser.getCoverImage();
 
-    console.log(`parsed details\ntitle: ${title}\nauthor: ${author}`);
+    console.log(
+        `${chalk.blue("[LOG]")} parsed details\n${chalk.gray(
+            "title"
+        )}: ${title}\n${chalk.gray("author")}: ${author}`
+    );
 
+    console.log(`${chalk.blue("[LOG]")} starting to parse chapters`);
     let chapterInformations = await parser.getAllChapterInfo();
 
     let pages = [];
-    for (let i = 0; i < concurrency + 1; i++) {
-        let newPage = await createNewPage(connectionInfo);
+    for (let i = 0; i < concurrency; i++) {
+        let newPage = await createNewPage(connectionInfo, false);
         pages.push(newPage);
     }
 
     const bar = new ProgressBar(
-        "scraping chapters [:bar] :current/:total (:rate chap/s) :percent (:etas)",
+        `${chalk.blue("[LOG]")} scraping chapters ${chalk.green(
+            "[:bar]"
+        )} :current/:total ${chalk.dim("(:rate chap/s)")} :percent ${chalk.dim(
+            "(:etas)"
+        )}`,
         {
             total: chapterInformations.length,
             width: 50,
         }
     );
 
-    const { results, errors } = await PromisePool.withConcurrency(concurrency)
+    const { results } = await PromisePool.withConcurrency(concurrency)
         .for(chapterInformations)
         .onTaskFinished(() => {
             bar.tick();
         })
         .process(async (chapterInformation) => {
             let page = pages.pop();
-            let chapter = await parser.getChapterContent(
-                page,
-                chapterInformation
-            );
+            let chapter: ChapterWithContent;
+            let tries = 0;
+            while (!chapter && tries < MAX_TRIES) {
+                try {
+                    chapter = await parser.getChapterContent(
+                        page,
+                        chapterInformation
+                    );
+                } catch (e) {
+                    console.log(e, chapterInformation.url);
+                    tries++;
+                }
+            }
+
             pages.push(page);
 
             return chapter;

@@ -49,6 +49,7 @@ export type WebnovelToEpubInput = {
     url: string;
     concurrency: number;
     savePath: string;
+    timeout: number;
 };
 
 export async function makeWebnovelToEpubPrompt(): Promise<WebnovelToEpubInput> {
@@ -76,6 +77,12 @@ export async function makeWebnovelToEpubPrompt(): Promise<WebnovelToEpubInput> {
             root: download(),
             onlyShowDir: true,
         },
+        {
+            type: "number",
+            name: "timeout",
+            message:
+                "Enter the maximum amount of time the code should wait for a page to load (recommended 10000ms):",
+        },
     ]);
 
     return answers;
@@ -85,6 +92,7 @@ export type WebnovelToJSONInput = {
     url: string;
     concurrency: number;
     savePath: string;
+    timeout: number;
 };
 
 export async function makeWebnovelToJSONPrompt(): Promise<WebnovelToJSONInput> {
@@ -111,6 +119,12 @@ export async function makeWebnovelToJSONPrompt(): Promise<WebnovelToJSONInput> {
             message: "Select the directory to save the JSON to:\n",
             root: download(),
             onlyShowDir: true,
+        },
+        {
+            type: "number",
+            name: "timeout",
+            message:
+                "Enter the maximum amount of time the code should wait for a page to load (recommended 10000ms):",
         },
     ]);
 

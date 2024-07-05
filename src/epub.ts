@@ -3,6 +3,7 @@ import { downloadImageLocally, PuppeteerConnectionInfo } from "./scraper.js";
 import { htmlifyContent, sanitizeFilename } from "./strings.js";
 import { join } from "path";
 import { SerializableWebnovel } from "./json.js";
+import chalk from "chalk";
 
 const TEMP_FILE_PATH = "./";
 
@@ -13,7 +14,7 @@ export async function writeWebnovelToEpub(
 ): Promise<void> {
     const Epub = (await import("epub-gen")).default;
 
-    console.log("downloading cover image...");
+    console.log(`${chalk.blue("[LOG]")} downloading cover image...`);
     let coverImagePath = await downloadImageLocally(
         connectionInfo,
         webnovel.coverImageURL,
@@ -32,7 +33,7 @@ export async function writeWebnovelToEpub(
         }),
     };
 
-    console.log("creating epub...");
+    console.log(`${chalk.blue("[LOG]")} creating epub...`);
 
     await new Epub(
         epubOptions,

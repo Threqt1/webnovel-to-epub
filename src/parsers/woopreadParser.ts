@@ -1,16 +1,15 @@
 import { Page } from "puppeteer";
-import {
-    ChapterInformation,
-    ChapterWithContent,
-    Parser,
-} from "./baseParser.js";
+import { Parser } from "./baseParser.js";
 import { PuppeteerConnectionInfo } from "../scraper.js";
 import ProgressBar from "progress";
+import chalk from "chalk";
+import { ChapterInformation, ChapterWithContent } from "../json.js";
 
 export default class WoopreadParser extends Parser {
     page: Page;
     baseUrl: string;
     initialSetupComplete: boolean;
+    timeout: number;
 
     constructor() {
         super();
@@ -18,14 +17,17 @@ export default class WoopreadParser extends Parser {
 
     async initialize(
         baseUrl: string,
-        connectionInfo: PuppeteerConnectionInfo
+        connectionInfo: PuppeteerConnectionInfo,
+        timeout: number
     ): Promise<void> {
         this.page = connectionInfo.page;
 
         await this.page.goto(baseUrl, {
             waitUntil: "domcontentloaded",
+            timeout: timeout,
         });
 
+        this.timeout = timeout;
         this.initialSetupComplete = true;
     }
 
@@ -114,7 +116,9 @@ export default class WoopreadParser extends Parser {
         }
 
         const bar = new ProgressBar(
-            "parsing table of contents [:bar] :current/:total :percent ",
+            `${chalk.blue("[LOG]")} parsing table of contents ${chalk.green(
+                "[:bar]"
+            )} :current/:total ${chalk.dim(":percent")}`,
             {
                 total: chapters.length,
                 width: 50,
@@ -124,54 +128,18 @@ export default class WoopreadParser extends Parser {
         bar.tick(chapters.length);
 
         return chapters;
-
-        /*
-    let isInVolumes = await this.page
-            .$eval("ul.sub-chap-list", () => true)
-            .catch(() => false);
-        console.log(isInVolumes);
-        if (isInVolumes) {
-            chapters = await this.page.$$eval(
-                "div#manga-chapters-holder ul.sub-chap-list",
-                (volumes) => {
-                    let localChapters = [];
-                    for (let volume of volumes) {
-                        let volumeChapters = [];
-                        let links = volume.querySelectorAll("li a");
-                        links.forEach((link: HTMLAnchorElement) => {
-                            volumeChapters.push({
-                                title: link.innerText.trim(),
-                                url: link.href,
-                            });
-                        });
-                        chapters = chapters.concat(volumeChapters.reverse());
-                    }
-                    return localChapters;
-                }
-            );
-        } else {
-            chapters = await this.page.$$eval(
-                "div#manga-chapters-holder ul.main li a",
-                (elements) => {
-                    return elements.map((element) => {
-                        return {
-                            title: element.innerText.trim(),
-                            url: element.href,
-                        };
-                    });
-                }
-            );
-        }
-        */
     }
 
     async getChapterContent(
         page: Page,
         chapterInformation: ChapterInformation
     ): Promise<ChapterWithContent> {
-        await page.goto(chapterInformation.url, {
-            waitUntil: "domcontentloaded",
-        });
+        try {
+            await page.goto(chapterInformation.url, {
+                waitUntil: "domcontentloaded",
+                timeout: this.timeout,
+            });
+        } catch (e) {}
 
         await page.waitForSelector("div.reading-content");
         let content = await page.$eval("div.reading-content", (element) =>
