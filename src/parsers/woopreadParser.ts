@@ -1,9 +1,10 @@
 import { Page } from "puppeteer";
 import { Parser } from "./baseParser.js";
 import { PuppeteerConnectionInfo } from "../scraper.js";
-import ProgressBar from "progress";
 import chalk from "chalk";
-import { ChapterInformation, ChapterWithContent } from "../json.js";
+import { Chapter } from "../json.js";
+import { MultiProgressBars } from "multi-progress-bars";
+import { DefaultProgressBarCustomization } from "../logger.js";
 
 export default class WoopreadParser extends Parser {
     page: Page;
@@ -28,6 +29,7 @@ export default class WoopreadParser extends Parser {
         });
 
         this.timeout = timeout;
+        this.baseUrl = baseUrl;
         this.initialSetupComplete = true;
     }
 
@@ -69,12 +71,18 @@ export default class WoopreadParser extends Parser {
         return image;
     }
 
-    async getAllChapterInfo(): Promise<ChapterInformation[]> {
+    async getAllChapters(pb: MultiProgressBars): Promise<Chapter[]> {
         if (!this.initialSetupComplete)
             return Promise.reject("Setup not completed");
 
+        pb.addTask(`Parsing Table of Contents ${this.baseUrl}`, {
+            ...DefaultProgressBarCustomization,
+            nameTransformFn: () =>
+                `Parsing Table of Contents (${chalk.dim(this.baseUrl)})`,
+        });
+
         await this.page.waitForSelector("div#manga-chapters-holder ul.main");
-        let chapters: ChapterInformation[] = [];
+        let chapters: Chapter[] = [];
         //check if there are volumes
         let isInVolumes = await this.page
             .$eval("ul.sub-chap-list", () => true)
@@ -108,6 +116,8 @@ export default class WoopreadParser extends Parser {
                         return {
                             title: element.innerText.trim(),
                             url: element.href,
+                            isContentFilled: false,
+                            content: "",
                         };
                     });
                 }
@@ -115,27 +125,19 @@ export default class WoopreadParser extends Parser {
             chapters = chapters.reverse();
         }
 
-        const bar = new ProgressBar(
-            `${chalk.blue("[LOG]")} parsing table of contents ${chalk.green(
-                "[:bar]"
-            )} :current/:total ${chalk.dim(":percent")}`,
-            {
-                total: chapters.length,
-                width: 50,
-            }
-        );
-
-        bar.tick(chapters.length);
+        pb.done(`Parsing Table of Contents ${this.baseUrl}`, {
+            nameTransformFn: () =>
+                `Parsing Table of Contents (${chapters.length}/${
+                    chapters.length
+                }) (${chalk.dim(this.baseUrl)})`,
+        });
 
         return chapters;
     }
 
-    async getChapterContent(
-        page: Page,
-        chapterInformation: ChapterInformation
-    ): Promise<ChapterWithContent> {
+    async getChapterContent(page: Page, chapter: Chapter): Promise<string> {
         try {
-            await page.goto(chapterInformation.url, {
+            await page.goto(chapter.url, {
                 waitUntil: "domcontentloaded",
                 timeout: this.timeout,
             });
@@ -146,22 +148,15 @@ export default class WoopreadParser extends Parser {
             element.innerText.trim()
         );
 
-        return {
-            title: chapterInformation.title,
-            content,
-        };
+        return content;
     }
 
     matchUrl(url: string): boolean {
         let parsed = new URL(url);
+        let urls = ["woopread.com", "noveltranslationhub.com"];
 
-        return (
-            parsed.hostname
-                .split(".")
-                .slice(-2)
-                .join(".")
-                .trim()
-                .toLowerCase() === "woopread.com"
+        return urls.includes(
+            parsed.hostname.split(".").slice(-2).join(".").trim().toLowerCase()
         );
     }
 }
