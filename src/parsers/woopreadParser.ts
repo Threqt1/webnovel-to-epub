@@ -1,10 +1,13 @@
 import { Page } from "puppeteer";
 import { Parser } from "./baseParser.js";
-import { PuppeteerConnectionInfo } from "../scraper.js";
+import { createNewPage, PuppeteerConnectionInfo } from "../scraper.js";
 import chalk from "chalk";
 import { Chapter } from "../json.js";
 import { MultiProgressBars } from "multi-progress-bars";
 import { DefaultProgressBarCustomization } from "../logger.js";
+import * as cheerio from "cheerio";
+import { getFilePathFromURL } from "../strings.js";
+import { writeFile } from "fs/promises";
 
 export default class WoopreadParser extends Parser {
     page: Page;
@@ -135,20 +138,18 @@ export default class WoopreadParser extends Parser {
         return chapters;
     }
 
-    async getChapterContent(page: Page, chapter: Chapter): Promise<string> {
-        try {
-            await page.goto(chapter.url, {
-                waitUntil: "domcontentloaded",
-                timeout: this.timeout,
-            });
-        } catch (e) {}
-
-        await page.waitForSelector("div.reading-content");
-        let content = await page.$eval("div.reading-content", (element) =>
-            element.innerText.trim()
+    async getChapterContent(
+        connectionInfo: PuppeteerConnectionInfo,
+        page: Page,
+        chapter: Chapter
+    ): Promise<string> {
+        return this.baseParsePageContent(
+            connectionInfo,
+            page,
+            chapter,
+            "div.reading-content",
+            this.timeout
         );
-
-        return content;
     }
 
     matchUrl(url: string): boolean {

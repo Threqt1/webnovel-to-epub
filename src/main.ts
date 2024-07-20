@@ -1,3 +1,4 @@
+import { mkdir, rm, writeFile } from "fs/promises";
 import {
     makeJSONMultipleSelectionPrompt,
     makeJSONSingleSelectionPrompt,
@@ -18,12 +19,15 @@ import {
     writeWebnovelToJSON,
 } from "./json.js";
 import {
+    createNewPage,
     makeNewConnection,
     PuppeteerConnectionInfo,
     scrapeWebnovel,
 } from "./scraper.js";
 import { PromisePool } from "@supercharge/promise-pool";
 import { MultiProgressBars } from "multi-progress-bars";
+import { getFilePathFromURL, TEMP_FILE_PATH } from "./strings.js";
+import { printLog } from "./logger.js";
 
 /*
 TODO:
@@ -38,6 +42,10 @@ TODO:
 */
 
 async function main() {
+    try {
+        printLog("making temp dir");
+        await mkdir(TEMP_FILE_PATH);
+    } catch (e) {}
     let parsingOption = await makeParsingOptionsSelectionPrompt();
     let progressBars = new MultiProgressBars({
         initMessage: "Webnovel To Epub",
@@ -76,6 +84,13 @@ async function main() {
             await handleWriteJSON(webnovel, progressBars);
             break;
     }
+    try {
+        printLog("cleaning up temp dir");
+        await rm(TEMP_FILE_PATH, {
+            recursive: true,
+            force: true,
+        });
+    } catch (e) {}
 }
 
 async function handleScrapeSingle(pb: MultiProgressBars): Promise<Webnovel> {

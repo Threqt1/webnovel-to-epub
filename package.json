@@ -20,6 +20,7 @@
         "@supercharge/promise-pool": "^3.2.0",
         "@threqt1/puppeteer-real-browser": "^1.2.20",
         "chalk": "^5.3.0",
+        "cheerio": "^1.0.0-rc.12",
         "downloads-folder": "^3.0.3",
         "epub-gen": "^0.1.0",
         "inquirer": "^9.3.4",

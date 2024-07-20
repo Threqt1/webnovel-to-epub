@@ -6,6 +6,11 @@
             "ES2022",
             "DOM"
         ],
+        "paths": {
+            "cheerio": [
+                "./node_modules/cheerio/lib/index.d.ts"
+            ]
+        },
         "moduleResolution": "node16",
         "esModuleInterop": true,
         "rootDir": "src",

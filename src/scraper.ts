@@ -1,8 +1,7 @@
 import { Browser, Page } from "puppeteer";
 import { PromisePool } from "@supercharge/promise-pool";
 import { writeFile } from "fs/promises";
-import { join } from "path";
-import { sanitizeFilename } from "./strings.js";
+import { getFilePathFromURL } from "./strings.js";
 import { Webnovel } from "./json.js";
 import { findCorrectParser } from "./parser.js";
 import chalk from "chalk";
@@ -64,19 +63,12 @@ async function setupPage(page: Page, allowImg: boolean = true): Promise<void> {
     });
 }
 
-export async function downloadImageLocally(
+export async function downloadFileLocally(
     page: Page,
     url: string,
-    timeoutNumber: number,
-    path?: string
+    timeoutNumber: number
 ): Promise<string> {
-    let fileNameSplit = url.split("/").at(-1).split(".");
-    let fileName = fileNameSplit[0];
-    let fileExtension = fileNameSplit[1];
-    let filePath = join(
-        path || __dirname,
-        `${sanitizeFilename(fileName)}.${fileExtension}`
-    );
+    let filePath = getFilePathFromURL(url);
 
     let tries = 0;
     let success = false;
@@ -85,10 +77,7 @@ export async function downloadImageLocally(
             let promise = new Promise(async (resolve, reject) => {
                 let timeout = setTimeout(() => reject(false), timeoutNumber);
                 page.on("response", async (response) => {
-                    if (
-                        response.url() === url &&
-                        response.headers()["content-type"].includes("image")
-                    ) {
+                    if (response.url() === url) {
                         await writeFile(filePath, await response.buffer());
                         clearTimeout(timeout);
                         resolve(true);
@@ -107,7 +96,7 @@ export async function downloadImageLocally(
     }
 
     if (!success) {
-        printLog("failed to download cover image, defaulting to none");
+        printLog("failed to download image");
         return "";
     }
 
@@ -184,12 +173,12 @@ export async function scrapeWebnovel(
             while (!chapter.isContentFilled && tries < MAX_TRIES) {
                 try {
                     chapter.content = await parser.getChapterContent(
+                        connectionInfo,
                         page,
                         chapter
                     );
                     chapter.isContentFilled = true;
                 } catch (e) {
-                    console.log(e, chapter.url);
                     tries++;
                 }
             }
