@@ -4,7 +4,7 @@ import {
     downloadFileLocally,
     PuppeteerConnectionInfo,
 } from "./scraper.js";
-import { htmlifyContent, sanitizeFilename } from "./strings.js";
+import { sanitizeFilename } from "./strings.js";
 import { join } from "path";
 import { Webnovel } from "./json.js";
 import chalk from "chalk";
@@ -43,7 +43,7 @@ export async function writeWebnovelToEpub(
         content: webnovel.chapters.map((chapter) => {
             return {
                 title: chapter.title,
-                data: chapter.content, //htmlifyContent(chapter.content),
+                data: chapter.content,
             };
         }),
     };
