@@ -1,14 +1,10 @@
-import { createNewPage, PuppeteerConnectionInfo } from "../scraper.js";
+import { PuppeteerConnectionInfo } from "../scraper.js";
 import { Chapter } from "../json.js";
 import { MultiProgressBars } from "multi-progress-bars";
-import { writeFile } from "fs/promises";
-import { getFilePathFromURL, htmlifyContent } from "../strings.js";
-import * as cheerio from "cheerio";
 import { Page } from "puppeteer";
+import { ParserOption } from "../cli.js";
 
-const BANNED_TAGS = ["script", "video", "audio", "iframe", "input"];
-
-export abstract class Parser {
+export abstract class Scraper {
     abstract initialize(
         baseUrl: string,
         connectionInfo: PuppeteerConnectionInfo,
@@ -18,20 +14,19 @@ export abstract class Parser {
     abstract getAuthor(): Promise<string>;
     abstract getCoverImage(): Promise<string>;
     abstract getAllChapters(pb: MultiProgressBars): Promise<Chapter[]>;
-    abstract getChapterContent(
-        connectionInfo: PuppeteerConnectionInfo,
+    abstract scrapeChapter(
         page: Page,
-        chapter: Chapter
-    ): Promise<string>;
+        chapter: Chapter,
+        parserType: ParserOption
+    ): Promise<void>;
     abstract matchUrl(url: string): boolean;
 
-    protected async baseParsePageContent(
-        connectionInfo: PuppeteerConnectionInfo,
+    protected async scrapePageHTML(
         page: Page,
         chapter: Chapter,
         contentSelector: string,
         timeout: number,
-        textOnlyNoFormat = false
+        parserType: ParserOption
     ) {
         await page.goto(chapter.url, {
             waitUntil: "domcontentloaded",
@@ -40,7 +35,25 @@ export abstract class Parser {
 
         await page.waitForSelector(contentSelector);
 
-        if (textOnlyNoFormat) {
+        if (parserType === ParserOption.TextOnly) {
+            let text = await page.$eval(contentSelector, (ele: any) =>
+                ele.innerText.trim()
+            );
+            chapter.content = text ?? "";
+            chapter.hasBeenScraped = true;
+            chapter.hasBeenParsed = true;
+        } else {
+            let html = await page.$eval(contentSelector, (ele) =>
+                ele.innerHTML.trim()
+            );
+            chapter.content = html;
+            chapter.hasBeenScraped = true;
+        }
+    }
+}
+
+/*
+if (textOnlyNoFormat) {
             let text = await page.$eval(
                 contentSelector,
                 (ele: any) => ele.innerText
@@ -107,5 +120,4 @@ export abstract class Parser {
         await tempPage.close();
 
         return $.html();
-    }
-}
+        */

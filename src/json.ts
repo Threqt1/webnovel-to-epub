@@ -14,7 +14,8 @@ const validator = new Validator();
 export interface Chapter {
     title: string;
     url: string;
-    isContentFilled: boolean;
+    hasBeenScraped: boolean;
+    hasBeenParsed: boolean;
     content: string;
 }
 
@@ -39,6 +40,8 @@ let SerializableWebnovelSchema = {
                     title: { type: "string" },
                     url: { type: "string" },
                     content: { type: "string" },
+                    hasBeenParsed: { type: "boolean" },
+                    hasBeenScraped: { type: "boolean" },
                 },
             },
         },

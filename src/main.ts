@@ -1,15 +1,19 @@
-import { mkdir, rm, writeFile } from "fs/promises";
+import { mkdir, rm } from "fs/promises";
 import {
     makeJSONMultipleSelectionPrompt,
     makeJSONSingleSelectionPrompt,
-    makeParsingOptionsSelectionPrompt,
+    makeScrapingOptionsSelectionPrompt,
     makeScrapeMultipleSelectionPrompt,
     makeScrapeSingleSelectionPrompt,
     makeWebnovelOptionsSelectionPrompt,
     makeWriteEpubSelectionPrompt,
     makeWriteJSONSelectionPrompt,
-    ParsingOption,
+    ParserOption,
+    ScraperOption,
     WebnovelOption,
+    makeParsingOptionSelectionPrompt,
+    makeParserWithImagesSelectionPrompt,
+    ParserWithImagesOptions,
 } from "./cli.js";
 import { writeWebnovelToEpub } from "./epub.js";
 import {
@@ -19,15 +23,15 @@ import {
     writeWebnovelToJSON,
 } from "./json.js";
 import {
-    createNewPage,
     makeNewConnection,
     PuppeteerConnectionInfo,
     scrapeWebnovel,
 } from "./scraper.js";
 import { PromisePool } from "@supercharge/promise-pool";
 import { MultiProgressBars } from "multi-progress-bars";
-import { getFilePathFromURL, TEMP_FILE_PATH } from "./strings.js";
+import { TEMP_FILE_PATH } from "./strings.js";
 import { printLog } from "./logger.js";
+import { parseWebnovel } from "./parser.js";
 
 /*
 TODO:
@@ -46,7 +50,17 @@ async function main() {
         printLog("making temp dir");
         await mkdir(TEMP_FILE_PATH);
     } catch (e) {}
-    let parsingOption = await makeParsingOptionsSelectionPrompt();
+    let scrapingOption = await makeScrapingOptionsSelectionPrompt();
+    let parsingOption = await makeParsingOptionSelectionPrompt();
+
+    let extraParsingOptions: ParserWithImagesOptions | undefined;
+    switch (parsingOption) {
+        case ParserOption.WithImage:
+            extraParsingOptions = await makeParserWithImagesSelectionPrompt();
+            break;
+        default:
+    }
+
     let progressBars = new MultiProgressBars({
         initMessage: "Webnovel To Epub",
         anchor: "top",
@@ -54,21 +68,36 @@ async function main() {
         border: true,
     });
     let webnovel: Webnovel | undefined;
-    switch (parsingOption) {
-        case ParsingOption.ScrapeSingle:
-            webnovel = await handleScrapeSingle(progressBars);
+    switch (scrapingOption) {
+        case ScraperOption.ScrapeSingle:
+            webnovel = await handleScrapeSingle(parsingOption, progressBars);
             break;
-        case ParsingOption.ScrapeMultiple:
-            webnovel = await handleScrapeMultiple(progressBars);
+        case ScraperOption.ScrapeMultiple:
+            webnovel = await handleScrapeMultiple(parsingOption, progressBars);
             break;
-        case ParsingOption.JSONSingle:
+        case ScraperOption.JSONSingle:
             webnovel = await handleJSONSingle(progressBars);
             break;
-        case ParsingOption.JSONMultiple:
+        case ScraperOption.JSONMultiple:
             webnovel = await handleJSONMultiple(progressBars);
             break;
     }
     progressBars.close();
+
+    progressBars = new MultiProgressBars({
+        initMessage: "Webnovel To Epub",
+        anchor: "top",
+        persist: true,
+        border: true,
+    });
+    await handleParseWebnovel(
+        webnovel,
+        parsingOption,
+        progressBars,
+        extraParsingOptions
+    );
+    progressBars.close();
+
     progressBars = new MultiProgressBars({
         initMessage: "Webnovel To Epub",
         anchor: "top",
@@ -93,13 +122,17 @@ async function main() {
     } catch (e) {}
 }
 
-async function handleScrapeSingle(pb: MultiProgressBars): Promise<Webnovel> {
+async function handleScrapeSingle(
+    parserType: ParserOption,
+    pb: MultiProgressBars
+): Promise<Webnovel> {
     let options = await makeScrapeSingleSelectionPrompt();
     let connectionInfo = await makeNewConnection();
 
     let webnovel = await scrapeWebnovel(
         options.url,
         connectionInfo,
+        parserType,
         options.concurrencyPages,
         options.timeout,
         pb
@@ -110,37 +143,34 @@ async function handleScrapeSingle(pb: MultiProgressBars): Promise<Webnovel> {
     return webnovel;
 }
 
-async function handleScrapeMultiple(pb: MultiProgressBars): Promise<Webnovel> {
+async function handleScrapeMultiple(
+    parserType: ParserOption,
+    pb: MultiProgressBars
+): Promise<Webnovel> {
     let options = await makeScrapeMultipleSelectionPrompt();
 
-    let connectionInfos: PuppeteerConnectionInfo[] = [];
-    for (let i = 0; i < options.concurrencyBrowsers; i++) {
-        let info = await makeNewConnection();
-        connectionInfos.push(info);
+    let connectionInfo = await makeNewConnection();
+
+    let webnovels = [];
+    for (let url of options.webnovelURLs) {
+        let webnovel = await scrapeWebnovel(
+            url,
+            connectionInfo,
+            parserType,
+            options.concurrencyPages,
+            options.timeout,
+            pb
+        );
+        webnovels.push(webnovel);
     }
 
-    const { results } = await PromisePool.withConcurrency(
-        options.concurrencyBrowsers
-    )
-        .for(options.webnovelURLs)
-        .process(async (url) => {
-            let connectionInfo = connectionInfos.pop();
-            let webnovel = await scrapeWebnovel(
-                url,
-                connectionInfo,
-                options.concurrencyPages,
-                options.timeout,
-                pb
-            );
-            connectionInfos.push(connectionInfo);
-            return webnovel;
-        });
+    await connectionInfo.browser.close();
 
-    for (let info of connectionInfos) {
-        await info.browser.close();
-    }
-
-    let combined = await combineWebnovels(results, options.indexToKeepData, pb);
+    let combined = await combineWebnovels(
+        webnovels,
+        options.indexToKeepData,
+        pb
+    );
 
     return combined;
 }
@@ -169,6 +199,29 @@ async function handleJSONMultiple(pb: MultiProgressBars): Promise<Webnovel> {
     );
 
     return combined;
+}
+
+async function handleParseWebnovel(
+    webnovel: Webnovel,
+    parserType: ParserOption,
+    pb: MultiProgressBars,
+    extraOptions?: ParserWithImagesOptions
+): Promise<Webnovel> {
+    let connectionInfo = await makeNewConnection();
+    extraOptions = extraOptions ?? { timeout: 10000, concurrencyPages: 1 };
+
+    let parsedWebnovel = await parseWebnovel(
+        connectionInfo,
+        webnovel,
+        parserType,
+        extraOptions.concurrencyPages,
+        extraOptions.timeout,
+        pb
+    );
+
+    await connectionInfo.browser.close();
+
+    return parsedWebnovel;
 }
 
 async function handleWriteEpub(webnovel: Webnovel, pb: MultiProgressBars) {

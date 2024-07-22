@@ -1,15 +1,13 @@
 import { Page } from "puppeteer";
-import { Parser } from "./baseParser.js";
-import { createNewPage, PuppeteerConnectionInfo } from "../scraper.js";
+import { Scraper } from "./baseScraper.js";
+import { PuppeteerConnectionInfo } from "../scraper.js";
 import chalk from "chalk";
 import { Chapter } from "../json.js";
 import { MultiProgressBars } from "multi-progress-bars";
 import { DefaultProgressBarCustomization } from "../logger.js";
-import * as cheerio from "cheerio";
-import { getFilePathFromURL } from "../strings.js";
-import { writeFile } from "fs/promises";
+import { ParserOption } from "../cli.js";
 
-export default class WoopreadParser extends Parser {
+export default class WoopreadScraper extends Scraper {
     page: Page;
     baseUrl: string;
     initialSetupComplete: boolean;
@@ -119,7 +117,8 @@ export default class WoopreadParser extends Parser {
                         return {
                             title: element.innerText.trim(),
                             url: element.href,
-                            isContentFilled: false,
+                            hasBeenParsed: false,
+                            hasBeenScraped: false,
                             content: "",
                         };
                     });
@@ -138,17 +137,17 @@ export default class WoopreadParser extends Parser {
         return chapters;
     }
 
-    async getChapterContent(
-        connectionInfo: PuppeteerConnectionInfo,
+    async scrapeChapter(
         page: Page,
-        chapter: Chapter
-    ): Promise<string> {
-        return this.baseParsePageContent(
-            connectionInfo,
+        chapter: Chapter,
+        parserType: ParserOption
+    ): Promise<void> {
+        return this.scrapePageHTML(
             page,
             chapter,
             "div.reading-content",
-            this.timeout
+            this.timeout,
+            parserType
         );
     }
 

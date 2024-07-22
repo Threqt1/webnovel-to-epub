@@ -4,14 +4,14 @@ import download from "downloads-folder";
 import urlRegex from "url-regex";
 inquirer.registerPrompt("file-tree-selection", FileTreeSelectionPrompt);
 
-export enum ParsingOption {
+export enum ScraperOption {
     ScrapeSingle = 0,
     ScrapeMultiple = 1,
     JSONSingle = 2,
     JSONMultiple = 3,
 }
 
-export async function makeParsingOptionsSelectionPrompt(): Promise<ParsingOption> {
+export async function makeScrapingOptionsSelectionPrompt(): Promise<ScraperOption> {
     let answer = await inquirer.prompt([
         {
             type: "list",
@@ -20,25 +20,25 @@ export async function makeParsingOptionsSelectionPrompt(): Promise<ParsingOption
             choices: [
                 {
                     name: "Scrape a webnovel from the web",
-                    value: ParsingOption.ScrapeSingle,
+                    value: ScraperOption.ScrapeSingle,
                 },
                 {
                     name: "Scrape and combine multiple webnovels from the web",
-                    value: ParsingOption.ScrapeMultiple,
+                    value: ScraperOption.ScrapeMultiple,
                 },
                 {
                     name: "Parse a existing webnovel JSON file",
-                    value: ParsingOption.JSONSingle,
+                    value: ScraperOption.JSONSingle,
                 },
                 {
                     name: "Parse and combine multiple webnovel JSON files",
-                    value: ParsingOption.JSONSingle,
+                    value: ScraperOption.JSONSingle,
                 },
             ],
         },
     ]);
 
-    return ParsingOption[ParsingOption[answer.action]];
+    return ScraperOption[ScraperOption[answer.action]];
 }
 
 export type ScrapeSingleOptions = {
@@ -62,7 +62,7 @@ export async function makeScrapeSingleSelectionPrompt(): Promise<ScrapeSingleOpt
             type: "number",
             name: "concurrencyPages",
             message:
-                "Enter the maximum amount of concurrent tabs (default 3):\n",
+                "Enter the maximum amount of concurrent tabs to scrape with (default 3):\n",
             validate: (input: number) => {
                 return !isNaN(input);
             },
@@ -86,7 +86,6 @@ export async function makeScrapeSingleSelectionPrompt(): Promise<ScrapeSingleOpt
 export type ScrapeMultipleOptions = {
     webnovelURLs: string[];
     indexToKeepData: number;
-    concurrencyBrowsers: number;
     concurrencyPages: number;
     timeout: number;
 };
@@ -124,17 +123,7 @@ export async function makeScrapeMultipleSelectionPrompt(): Promise<ScrapeMultipl
         {
             type: "number",
             message:
-                "Enter the maximum amount of concurrent browsers to parse with (default 2)",
-            name: "concurrencyBrowsers",
-            validate: (input: number) => {
-                return !isNaN(input);
-            },
-            default: 2,
-        },
-        {
-            type: "number",
-            message:
-                "Enter the maximum amount of concurrent pages to parse with (default 3)",
+                "Enter the maximum amount of concurrent tabs to scrape with (default 3)",
             name: "concurrencyPages",
             validate: (input: number) => {
                 return !isNaN(input);
@@ -221,6 +210,70 @@ export async function makeJSONMultipleSelectionPrompt(): Promise<JSONMultipleOpt
     ]);
 
     return answers;
+}
+
+export enum ParserOption {
+    WithImage,
+    WithFormat,
+    TextOnly,
+}
+
+export async function makeParsingOptionSelectionPrompt(): Promise<ParserOption> {
+    let answer = await inquirer.prompt([
+        {
+            type: "list",
+            name: "action",
+            message: "How would you like to parse the webnovel's chapters?",
+            choices: [
+                {
+                    name: "Keep the chapter's format and images (slow)",
+                    value: ParserOption.WithImage,
+                },
+                {
+                    name: "Keep the chapter's format only (slowish)",
+                    value: ParserOption.WithFormat,
+                },
+                {
+                    name: "Keep the chapter's text only (fast)",
+                    value: ParserOption.TextOnly,
+                },
+            ],
+        },
+    ]);
+
+    return ParserOption[ParserOption[answer.action]];
+}
+
+export type ParserWithImagesOptions = {
+    concurrencyPages: number;
+    timeout: number;
+};
+
+export async function makeParserWithImagesSelectionPrompt(): Promise<ParserWithImagesOptions> {
+    let answer = await inquirer.prompt([
+        {
+            type: "number",
+            message:
+                "Enter the maximum amount of concurrent pages to parse with (default 3)",
+            name: "concurrencyPages",
+            validate: (input: number) => {
+                return !isNaN(input);
+            },
+            default: 3,
+        },
+        {
+            type: "number",
+            message:
+                "Enter the maximum timeout for a page to load (recommended 10000ms)",
+            name: "timeout",
+            validate: (input: number) => {
+                return !isNaN(input);
+            },
+            default: 10000,
+        },
+    ]);
+
+    return answer;
 }
 
 export enum WebnovelOption {

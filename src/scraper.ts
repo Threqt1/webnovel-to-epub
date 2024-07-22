@@ -1,9 +1,17 @@
+import { Scraper } from "./scrapers/baseScraper.js";
+import WoopreadScraper from "./scrapers/woopread.js";
+
+const ALL_SCRAPERS: Scraper[] = [new WoopreadScraper()];
+
+export function findCorrectScraper(url: string): Scraper {
+    return ALL_SCRAPERS.find((scraper) => scraper.matchUrl(url));
+}
+
 import { Browser, Page } from "puppeteer";
 import { PromisePool } from "@supercharge/promise-pool";
 import { writeFile } from "fs/promises";
 import { getFilePathFromURL } from "./strings.js";
 import { Webnovel } from "./json.js";
-import { findCorrectParser } from "./parser.js";
 import chalk from "chalk";
 import { MultiProgressBars } from "multi-progress-bars";
 import {
@@ -11,6 +19,7 @@ import {
     printError,
     printLog,
 } from "./logger.js";
+import { ParserOption } from "./cli.js";
 
 const MAX_TRIES = 3;
 
@@ -106,11 +115,12 @@ export async function downloadFileLocally(
 export async function scrapeWebnovel(
     url: string,
     connectionInfo: PuppeteerConnectionInfo,
+    parserType: ParserOption,
     concurrency: number,
     timeout: number,
     pb: MultiProgressBars
 ): Promise<Webnovel> {
-    let parser = findCorrectParser(url);
+    let parser = findCorrectScraper(url);
     if (!parser)
         printError(`parser not implemented for the url: ${chalk.dim(url)}`);
 
@@ -141,7 +151,7 @@ export async function scrapeWebnovel(
 
     let chapters = await parser.getAllChapters(pb);
 
-    let pages = [];
+    let pages: Page[] = [];
     for (let i = 0; i < concurrency; i++) {
         let newPage = await createNewPage(connectionInfo, false);
         pages.push(newPage);
@@ -167,17 +177,12 @@ export async function scrapeWebnovel(
             });
         })
         .process(async (chapter) => {
-            if (chapter.isContentFilled) return chapter;
+            if (chapter.hasBeenScraped) return chapter;
             let page = pages.pop();
             let tries = 0;
-            while (!chapter.isContentFilled && tries < MAX_TRIES) {
+            while (!chapter.hasBeenScraped && tries < MAX_TRIES) {
                 try {
-                    chapter.content = await parser.getChapterContent(
-                        connectionInfo,
-                        page,
-                        chapter
-                    );
-                    chapter.isContentFilled = true;
+                    await parser.scrapeChapter(page, chapter, parserType);
                 } catch (e) {
                     tries++;
                 }
@@ -189,6 +194,10 @@ export async function scrapeWebnovel(
         });
 
     pb.done(`Scraping Chapters ${url}`);
+
+    for (let page of pages) {
+        await page.close();
+    }
 
     return {
         title,
