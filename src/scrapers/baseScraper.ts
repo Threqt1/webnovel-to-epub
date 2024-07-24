@@ -1,6 +1,5 @@
 import { PuppeteerConnectionInfo } from "../scraper.js";
 import { Chapter } from "../json.js";
-import { MultiProgressBars } from "multi-progress-bars";
 import { Page } from "puppeteer";
 import { ParserOption } from "../cli.js";
 import { htmlifyContent } from "../strings.js";
@@ -14,7 +13,7 @@ export abstract class Scraper {
     abstract getTitle(): Promise<string>;
     abstract getAuthor(): Promise<string>;
     abstract getCoverImage(): Promise<string>;
-    abstract getAllChapters(pb: MultiProgressBars): Promise<Chapter[]>;
+    abstract getAllChapters(): Promise<Chapter[]>;
     abstract scrapeChapter(
         page: Page,
         chapter: Chapter,
@@ -50,5 +49,13 @@ export abstract class Scraper {
             chapter.content = html;
             chapter.hasBeenScraped = true;
         }
+    }
+
+    protected baseMatchURL(url, urls: string[]): boolean {
+        let parsed = new URL(url);
+
+        return urls.includes(
+            parsed.hostname.split(".").slice(-2).join(".").trim().toLowerCase()
+        );
     }
 }

@@ -22,26 +22,17 @@ import {
     Webnovel,
     writeWebnovelToJSON,
 } from "./json.js";
-import {
-    makeNewConnection,
-    PuppeteerConnectionInfo,
-    scrapeWebnovel,
-} from "./scraper.js";
-import { PromisePool } from "@supercharge/promise-pool";
+import { makeNewConnection, scrapeWebnovel } from "./scraper.js";
 import { MultiProgressBars } from "multi-progress-bars";
 import { TEMP_FILE_PATH } from "./strings.js";
-import { printLog } from "./logger.js";
+import { DefaultProgressBarCustomization, printLog } from "./logger.js";
 import { parseWebnovel } from "./parser.js";
 
 /*
 TODO:
-- add functionality to parse multiple urls and combine into ebook
 - add support for a chapter parsing method using the "next" button
-- add validation for invalid JSON files
 - update readme
-- add combining two JSON webnovel contents
 - add more parsers
-- add support for manga
 - add comments
 */
 
@@ -127,7 +118,14 @@ async function handleScrapeSingle(
     pb: MultiProgressBars
 ): Promise<Webnovel> {
     let options = await makeScrapeSingleSelectionPrompt();
+
+    pb.addTask("Starting Puppeteer", {
+        ...DefaultProgressBarCustomization,
+    });
+
     let connectionInfo = await makeNewConnection();
+
+    pb.done("Starting Puppeteer");
 
     let webnovel = await scrapeWebnovel(
         options.url,
@@ -149,7 +147,13 @@ async function handleScrapeMultiple(
 ): Promise<Webnovel> {
     let options = await makeScrapeMultipleSelectionPrompt();
 
+    pb.addTask("Starting Puppeteer", {
+        ...DefaultProgressBarCustomization,
+    });
+
     let connectionInfo = await makeNewConnection();
+
+    pb.done("Starting Puppeteer");
 
     let webnovels = [];
     for (let url of options.webnovelURLs) {
@@ -207,7 +211,14 @@ async function handleParseWebnovel(
     pb: MultiProgressBars,
     extraOptions?: ParserWithImagesOptions
 ): Promise<Webnovel> {
+    pb.addTask("Starting Puppeteer", {
+        ...DefaultProgressBarCustomization,
+    });
+
     let connectionInfo = await makeNewConnection();
+
+    pb.done("Starting Puppeteer");
+
     extraOptions = extraOptions ?? { timeout: 10000, concurrencyPages: 1 };
 
     let parsedWebnovel = await parseWebnovel(
@@ -226,7 +237,14 @@ async function handleParseWebnovel(
 
 async function handleWriteEpub(webnovel: Webnovel, pb: MultiProgressBars) {
     let options = await makeWriteEpubSelectionPrompt();
+
+    pb.addTask("Starting Puppeteer", {
+        ...DefaultProgressBarCustomization,
+    });
+
     let connectionInfo = await makeNewConnection();
+
+    pb.done("Starting Puppeteer");
 
     await writeWebnovelToEpub(
         webnovel,

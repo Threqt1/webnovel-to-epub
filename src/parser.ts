@@ -1,9 +1,11 @@
 import { Page } from "puppeteer";
 import { Chapter, Webnovel } from "./json.js";
-import { createNewPage, PuppeteerConnectionInfo } from "./scraper.js";
+import {
+    createNewPage,
+    downloadFilesLocally,
+    PuppeteerConnectionInfo,
+} from "./scraper.js";
 import * as cheerio from "cheerio";
-import { getFilePathFromURL } from "./strings.js";
-import { writeFile } from "fs/promises";
 import { MultiProgressBars } from "multi-progress-bars";
 import { DefaultProgressBarCustomization } from "./logger.js";
 import { PromisePool } from "@supercharge/promise-pool";
@@ -72,7 +74,20 @@ export async function parseWebnovel(
     return webnovel;
 }
 
-const BANNED_TAGS = ["script", "video", "audio", "iframe", "input"];
+const BANNED_TAGS = [
+    "script",
+    "video",
+    "audio",
+    "iframe",
+    "input",
+    "button",
+    "form",
+    "canvas",
+    "embed",
+    "figure",
+    "search",
+    "select",
+];
 
 export async function parseChapter(
     page: Page,
@@ -80,9 +95,7 @@ export async function parseChapter(
     parserType: ParserOption,
     timeout: number
 ): Promise<void> {
-    let $ = cheerio.load(
-        `<div id="PARSER_UTILITY_DIV">${chapter.content}</div>`
-    );
+    let $ = cheerio.load(chapter.content);
 
     let realBannedTags =
         parserType === ParserOption.WithImage
@@ -101,6 +114,20 @@ export async function parseChapter(
         return;
     }
 
+    await parseImages(page, chapter, $, timeout);
+
+    chapter.content = $.html();
+    chapter.hasBeenParsed = true;
+
+    return;
+}
+
+export async function parseImages(
+    page: Page,
+    chapter: Chapter,
+    $: cheerio.CheerioAPI,
+    timeout: number
+): Promise<void> {
     let imageURLs = [];
     $("img").each((_, ele) => {
         let $ele = $(ele);
@@ -108,36 +135,15 @@ export async function parseChapter(
     });
 
     if (imageURLs.length === 0) {
-        chapter.content = $.html();
-        chapter.hasBeenParsed = true;
         return;
     }
 
-    let imagePaths: { [key: string]: string } = {};
-    let responsesPromise = new Promise((resolve) => {
-        let timeoutResolve = setTimeout(() => resolve(true), timeout);
-
-        page.on("response", async (response) => {
-            if (imageURLs.length === 0) {
-                clearTimeout(timeoutResolve);
-                resolve(true);
-            }
-            if (imageURLs.includes(response.url())) {
-                let path = getFilePathFromURL(response.url());
-                try {
-                    await writeFile(path, await response.buffer());
-                    imagePaths[response.url()] = path;
-                } catch (e) {
-                    console.log(e);
-                }
-                imageURLs = imageURLs.filter((r) => r != response.url());
-            }
-        });
-    });
-
-    page.goto(chapter.url);
-
-    await responsesPromise;
+    let imagePaths = await downloadFilesLocally(
+        page,
+        chapter.url,
+        imageURLs,
+        timeout
+    );
 
     $("img").each((_, ele) => {
         let $ele = $(ele);
@@ -149,9 +155,6 @@ export async function parseChapter(
             $ele.attr("src", `file://${path}`);
         }
     });
-
-    chapter.content = $.html();
-    chapter.hasBeenParsed = true;
 
     return;
 }

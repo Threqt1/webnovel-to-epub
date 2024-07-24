@@ -1,10 +1,7 @@
 import { Page } from "puppeteer";
 import { Scraper } from "./baseScraper.js";
 import { PuppeteerConnectionInfo } from "../scraper.js";
-import chalk from "chalk";
 import { Chapter } from "../json.js";
-import { MultiProgressBars } from "multi-progress-bars";
-import { DefaultProgressBarCustomization } from "../logger.js";
 import { ParserOption } from "../cli.js";
 
 export default class WoopreadScraper extends Scraper {
@@ -35,9 +32,6 @@ export default class WoopreadScraper extends Scraper {
     }
 
     async getTitle(): Promise<string> {
-        if (!this.initialSetupComplete)
-            return Promise.reject("Setup not completed");
-
         await this.page.waitForSelector("div.post-title");
         let title: string = await this.page.$eval("div.post-title", (div) =>
             div.innerText.trim()
@@ -47,9 +41,6 @@ export default class WoopreadScraper extends Scraper {
     }
 
     async getAuthor(): Promise<string> {
-        if (!this.initialSetupComplete)
-            return Promise.reject("Setup not completed");
-
         await this.page.waitForSelector("div.author-content");
         let author: string = await this.page.$eval(
             "div.author-content",
@@ -60,9 +51,6 @@ export default class WoopreadScraper extends Scraper {
     }
 
     async getCoverImage(): Promise<string> {
-        if (!this.initialSetupComplete)
-            return Promise.reject("Setup not completed");
-
         await this.page.waitForSelector(`meta[property="og:image"]`);
         let image: string = await this.page.$eval(
             `meta[property="og:image"]`,
@@ -72,17 +60,9 @@ export default class WoopreadScraper extends Scraper {
         return image;
     }
 
-    async getAllChapters(pb: MultiProgressBars): Promise<Chapter[]> {
-        if (!this.initialSetupComplete)
-            return Promise.reject("Setup not completed");
-
-        pb.addTask(`Parsing Table of Contents ${this.baseUrl}`, {
-            ...DefaultProgressBarCustomization,
-            nameTransformFn: () =>
-                `Parsing Table of Contents (${chalk.dim(this.baseUrl)})`,
-        });
-
+    async getAllChapters(): Promise<Chapter[]> {
         await this.page.waitForSelector("div#manga-chapters-holder ul.main");
+
         let chapters: Chapter[] = [];
         //check if there are volumes
         let isInVolumes = await this.page
@@ -127,13 +107,6 @@ export default class WoopreadScraper extends Scraper {
             chapters = chapters.reverse();
         }
 
-        pb.done(`Parsing Table of Contents ${this.baseUrl}`, {
-            nameTransformFn: () =>
-                `Parsing Table of Contents (${chapters.length}/${
-                    chapters.length
-                }) (${chalk.dim(this.baseUrl)})`,
-        });
-
         return chapters;
     }
 
@@ -152,11 +125,9 @@ export default class WoopreadScraper extends Scraper {
     }
 
     matchUrl(url: string): boolean {
-        let parsed = new URL(url);
-        let urls = ["woopread.com", "noveltranslationhub.com"];
-
-        return urls.includes(
-            parsed.hostname.split(".").slice(-2).join(".").trim().toLowerCase()
-        );
+        return this.baseMatchURL(url, [
+            "woopread.com",
+            "noveltranslationhub.com",
+        ]);
     }
 }

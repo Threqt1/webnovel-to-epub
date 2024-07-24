@@ -1,12 +1,3 @@
-import { Scraper } from "./scrapers/baseScraper.js";
-import WoopreadScraper from "./scrapers/woopread.js";
-
-const ALL_SCRAPERS: Scraper[] = [new WoopreadScraper()];
-
-export function findCorrectScraper(url: string): Scraper {
-    return ALL_SCRAPERS.find((scraper) => scraper.matchUrl(url));
-}
-
 import { Browser, Page } from "puppeteer";
 import { PromisePool } from "@supercharge/promise-pool";
 import { writeFile } from "fs/promises";
@@ -20,6 +11,7 @@ import {
     printLog,
 } from "./logger.js";
 import { ParserOption } from "./cli.js";
+import { findCorrectScraper } from "./scrapers/scaperBucket.js";
 
 const MAX_TRIES = 3;
 
@@ -72,44 +64,46 @@ async function setupPage(page: Page, allowImg: boolean = true): Promise<void> {
     });
 }
 
-export async function downloadFileLocally(
+export async function downloadFilesLocally(
     page: Page,
-    url: string,
-    timeoutNumber: number
-): Promise<string> {
-    let filePath = getFilePathFromURL(url);
-
+    pageURL: string,
+    fileURLs: string[],
+    timeout: number
+): Promise<{ [key: string]: string }> {
     let tries = 0;
     let success = false;
+    let filePaths: { [key: string]: string } = {};
+
     while (!success && tries < MAX_TRIES) {
         try {
-            let promise = new Promise(async (resolve, reject) => {
-                let timeout = setTimeout(() => reject(false), timeoutNumber);
+            let promise: Promise<boolean> = new Promise((resolve) => {
+                let timeoutResolve = setTimeout(() => resolve(true), timeout);
+
                 page.on("response", async (response) => {
-                    if (response.url() === url) {
-                        await writeFile(filePath, await response.buffer());
-                        clearTimeout(timeout);
+                    if (fileURLs.length === 0) {
+                        clearTimeout(timeoutResolve);
                         resolve(true);
+                    }
+                    if (fileURLs.includes(response.url())) {
+                        let path = getFilePathFromURL(response.url());
+                        try {
+                            await writeFile(path, await response.buffer());
+                            filePaths[response.url()] = path;
+                        } catch (e) {
+                            console.log(e);
+                        }
+                        fileURLs = fileURLs.filter((r) => r != response.url());
                     }
                 });
             });
-            await page.goto(url, {
-                waitUntil: "networkidle0",
-            });
-            let result = await promise;
-            if (!result) throw new Error();
-            success = true;
-        } catch (e) {
+
+            page.goto(pageURL);
+            success = await promise;
             tries++;
-        }
+        } catch (e) {}
     }
 
-    if (!success) {
-        printLog("failed to download image");
-        return "";
-    }
-
-    return filePath;
+    return filePaths;
 }
 
 export async function scrapeWebnovel(
@@ -149,7 +143,19 @@ export async function scrapeWebnovel(
     printLog(`title: ${title}`);
     printLog(`author: ${author}`);
 
-    let chapters = await parser.getAllChapters(pb);
+    pb.addTask(`Parsing Table of Contents ${url}`, {
+        ...DefaultProgressBarCustomization,
+        nameTransformFn: () => `Parsing Table of Contents (${chalk.dim(url)})`,
+    });
+
+    let chapters = await parser.getAllChapters();
+
+    pb.done(`Parsing Table of Contents ${url}`, {
+        nameTransformFn: () =>
+            `Parsing Table of Contents (${chapters.length}/${
+                chapters.length
+            }) (${chalk.dim(url)})`,
+    });
 
     let pages: Page[] = [];
     for (let i = 0; i < concurrency; i++) {

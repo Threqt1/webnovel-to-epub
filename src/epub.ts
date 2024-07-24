@@ -1,7 +1,7 @@
 import { unlink } from "fs/promises";
 import {
     createNewPage,
-    downloadFileLocally,
+    downloadFilesLocally,
     PuppeteerConnectionInfo,
 } from "./scraper.js";
 import { sanitizeFilename } from "./strings.js";
@@ -28,11 +28,14 @@ export async function writeWebnovelToEpub(
 
     let page = await createNewPage(connectionInfo, true);
 
-    let coverImagePath = await downloadFileLocally(
-        page,
-        webnovel.coverImageURL,
-        timeout
-    );
+    let coverImagePath = (
+        await downloadFilesLocally(
+            page,
+            webnovel.coverImageURL,
+            [webnovel.coverImageURL],
+            timeout
+        )
+    )[webnovel.coverImageURL];
 
     pb.done("Downloading Cover Image");
 
@@ -46,6 +49,7 @@ export async function writeWebnovelToEpub(
                 data: chapter.content,
             };
         }),
+        tocTitle: "Table of Contents",
     };
 
     pb.addTask("Creating EPUB", {
