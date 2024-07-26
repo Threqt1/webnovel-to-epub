@@ -245,12 +245,23 @@ export async function makeParsingOptionSelectionPrompt(): Promise<ParserOption> 
 }
 
 export type ParserWithImagesOptions = {
+    imageQuality: number;
     concurrencyPages: number;
     timeout: number;
 };
 
 export async function makeParserWithImagesSelectionPrompt(): Promise<ParserWithImagesOptions> {
     let answer = await inquirer.prompt([
+        {
+            type: "number",
+            message:
+                "Enter the quality the images should be compressed to (recommended 80%) (helps with file size)",
+            name: "imageQuality",
+            validate: (input: number) => {
+                return !isNaN(input);
+            },
+            default: 80,
+        },
         {
             type: "number",
             message:
@@ -304,12 +315,23 @@ export async function makeWebnovelOptionsSelectionPrompt(): Promise<WebnovelOpti
 }
 
 export type WriteEpubOptions = {
+    imageQuality: number;
     savePath: string;
     timeout: number;
 };
 
 export async function makeWriteEpubSelectionPrompt(): Promise<WriteEpubOptions> {
     let answer = await inquirer.prompt([
+        {
+            type: "number",
+            message:
+                "Enter the quality the cover image should be compressed to (recommended 80%) (helps with file size)",
+            name: "imageQuality",
+            validate: (input: number) => {
+                return !isNaN(input);
+            },
+            default: 80,
+        },
         {
             type: "file-tree-selection",
             enableGoUpperDirectory: true,

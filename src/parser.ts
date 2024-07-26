@@ -2,7 +2,7 @@ import { Page } from "puppeteer";
 import { Chapter, Webnovel } from "./json.js";
 import {
     createNewPage,
-    downloadFilesLocally,
+    downloadImagesLocally,
     PuppeteerConnectionInfo,
 } from "./scraper.js";
 import * as cheerio from "cheerio";
@@ -20,6 +20,7 @@ export async function parseWebnovel(
     parserType: ParserOption,
     concurrency: number,
     timeout: number,
+    quality: number,
     pb: MultiProgressBars
 ): Promise<Webnovel> {
     pb.addTask(`Parsing Chapters ${webnovel.title}`, {
@@ -36,7 +37,7 @@ export async function parseWebnovel(
 
     let pages: Page[] = [];
     for (let i = 0; i < concurrency; i++) {
-        let newPage = await createNewPage(connectionInfo);
+        let newPage = await createNewPage(connectionInfo, true);
         pages.push(newPage);
     }
 
@@ -55,7 +56,13 @@ export async function parseWebnovel(
             let tries = 0;
             while (!chapter.hasBeenParsed && tries < MAX_TRIES) {
                 try {
-                    await parseChapter(page, chapter, parserType, timeout);
+                    await parseChapter(
+                        page,
+                        chapter,
+                        parserType,
+                        timeout,
+                        quality
+                    );
                 } catch (e) {
                     tries++;
                 }
@@ -93,7 +100,8 @@ export async function parseChapter(
     page: Page,
     chapter: Chapter,
     parserType: ParserOption,
-    timeout: number
+    timeout: number,
+    quality: number
 ): Promise<void> {
     let $ = cheerio.load(chapter.content);
 
@@ -114,7 +122,7 @@ export async function parseChapter(
         return;
     }
 
-    await parseImages(page, chapter, $, timeout);
+    await parseImages(page, chapter, $, timeout, quality);
 
     chapter.content = $.html();
     chapter.hasBeenParsed = true;
@@ -126,7 +134,8 @@ export async function parseImages(
     page: Page,
     chapter: Chapter,
     $: cheerio.CheerioAPI,
-    timeout: number
+    timeout: number,
+    quality: number
 ): Promise<void> {
     let imageURLs = [];
     $("img").each((_, ele) => {
@@ -138,11 +147,12 @@ export async function parseImages(
         return;
     }
 
-    let imagePaths = await downloadFilesLocally(
+    let imagePaths = await downloadImagesLocally(
         page,
         chapter.url,
         imageURLs,
-        timeout
+        timeout,
+        quality
     );
 
     $("img").each((_, ele) => {

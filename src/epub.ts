@@ -1,7 +1,7 @@
 import { unlink } from "fs/promises";
 import {
     createNewPage,
-    downloadFilesLocally,
+    downloadImagesLocally,
     PuppeteerConnectionInfo,
 } from "./scraper.js";
 import { sanitizeFilename } from "./strings.js";
@@ -16,6 +16,7 @@ export async function writeWebnovelToEpub(
     connectionInfo: PuppeteerConnectionInfo,
     savePath: string,
     timeout: number,
+    quality: number,
     pb: MultiProgressBars
 ): Promise<void> {
     const Epub = (await import("epub-gen")).default;
@@ -29,11 +30,12 @@ export async function writeWebnovelToEpub(
     let page = await createNewPage(connectionInfo, true);
 
     let coverImagePath = (
-        await downloadFilesLocally(
+        await downloadImagesLocally(
             page,
             webnovel.coverImageURL,
             [webnovel.coverImageURL],
-            timeout
+            timeout,
+            quality
         )
     )[webnovel.coverImageURL];
 

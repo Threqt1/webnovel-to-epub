@@ -104,7 +104,7 @@ export default class WoopreadScraper extends Scraper {
                     });
                 }
             );
-            chapters = chapters.reverse();
+            chapters = chapters.reverse().slice(0, 3);
         }
 
         return chapters;

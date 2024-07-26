@@ -28,14 +28,6 @@ import { TEMP_FILE_PATH } from "./strings.js";
 import { DefaultProgressBarCustomization, printLog } from "./logger.js";
 import { parseWebnovel } from "./parser.js";
 
-/*
-TODO:
-- add support for a chapter parsing method using the "next" button
-- update readme
-- add more parsers
-- add comments
-*/
-
 async function main() {
     try {
         printLog("making temp dir");
@@ -219,7 +211,11 @@ async function handleParseWebnovel(
 
     pb.done("Starting Puppeteer");
 
-    extraOptions = extraOptions ?? { timeout: 10000, concurrencyPages: 1 };
+    extraOptions = extraOptions ?? {
+        timeout: 10000,
+        concurrencyPages: 1,
+        imageQuality: 80,
+    };
 
     let parsedWebnovel = await parseWebnovel(
         connectionInfo,
@@ -227,6 +223,7 @@ async function handleParseWebnovel(
         parserType,
         extraOptions.concurrencyPages,
         extraOptions.timeout,
+        extraOptions.imageQuality,
         pb
     );
 
@@ -251,6 +248,7 @@ async function handleWriteEpub(webnovel: Webnovel, pb: MultiProgressBars) {
         connectionInfo,
         options.savePath,
         options.timeout,
+        options.imageQuality,
         pb
     );
 

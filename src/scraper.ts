@@ -12,6 +12,7 @@ import {
 } from "./logger.js";
 import { ParserOption } from "./cli.js";
 import { findCorrectScraper } from "./scrapers/scaperBucket.js";
+import sharp from "sharp";
 
 const MAX_TRIES = 3;
 
@@ -64,11 +65,12 @@ async function setupPage(page: Page, allowImg: boolean = true): Promise<void> {
     });
 }
 
-export async function downloadFilesLocally(
+export async function downloadImagesLocally(
     page: Page,
     pageURL: string,
     fileURLs: string[],
-    timeout: number
+    timeout: number,
+    quality: number
 ): Promise<{ [key: string]: string }> {
     let tries = 0;
     let success = false;
@@ -87,7 +89,10 @@ export async function downloadFilesLocally(
                     if (fileURLs.includes(response.url())) {
                         let path = getFilePathFromURL(response.url());
                         try {
-                            await writeFile(path, await response.buffer());
+                            let buffer = await response.buffer();
+                            await sharp(buffer)
+                                .webp({ lossless: true, quality })
+                                .toFile(path);
                             filePaths[response.url()] = path;
                         } catch (e) {
                             console.log(e);
@@ -137,7 +142,7 @@ export async function scrapeWebnovel(
 
     let title = await parser.getTitle();
     let author = await parser.getAuthor();
-    let coverImageLink = await parser.getCoverImage();
+    let coverImageURL = await parser.getCoverImage();
 
     pb.done(`Getting Metadata ${url}`);
     printLog(`title: ${title}`);
@@ -208,7 +213,7 @@ export async function scrapeWebnovel(
     return {
         title,
         author,
-        coverImageURL: coverImageLink,
+        coverImageURL,
         chapters,
     };
 }
