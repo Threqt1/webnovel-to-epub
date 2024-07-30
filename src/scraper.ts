@@ -1,6 +1,5 @@
 import { Browser, Page } from "puppeteer";
 import { PromisePool } from "@supercharge/promise-pool";
-import { writeFile } from "fs/promises";
 import { getFilePathFromURL } from "./strings.js";
 import { Webnovel } from "./json.js";
 import chalk from "chalk";
@@ -10,7 +9,7 @@ import {
     printError,
     printLog,
 } from "./logger.js";
-import { ParserOption } from "./cli.js";
+import { ImageOptions, ParserType, ScrapeSingleOptions } from "./cli.js";
 import { findCorrectScraper } from "./scrapers/scaperBucket.js";
 import sharp from "sharp";
 
@@ -25,7 +24,7 @@ export type PuppeteerConnectionInfo = {
 export async function makeNewConnection(
     executablePath?: string
 ): Promise<PuppeteerConnectionInfo> {
-    const { connect } = await import("@threqt1/puppeteer-real-browser");
+    const { connect } = await import("puppeteer-real-browser");
     console.log(`${chalk.blue("[LOG]")} starting puppeteer connection`);
     const connectionInfo: PuppeteerConnectionInfo = await connect({
         headless: "auto",
@@ -70,7 +69,7 @@ export async function downloadImagesLocally(
     pageURL: string,
     fileURLs: string[],
     timeout: number,
-    quality: number
+    options: ImageOptions
 ): Promise<{ [key: string]: string }> {
     let tries = 0;
     let success = false;
@@ -90,14 +89,23 @@ export async function downloadImagesLocally(
                         let path = getFilePathFromURL(response.url());
                         try {
                             let buffer = await response.buffer();
-                            await sharp(buffer)
-                                .webp({ lossless: true, quality })
-                                .toFile(path);
+                            let image = sharp(buffer).webp({
+                                lossless: true,
+                                quality: options.imageQuality,
+                            });
+                            if (options.shouldResize) {
+                                image.resize({
+                                    width: options.width,
+                                    height: options.height,
+                                    fit: "inside",
+                                });
+                            }
+                            await image.toFile(path);
                             filePaths[response.url()] = path;
-                        } catch (e) {
-                            console.log(e);
-                        }
-                        fileURLs = fileURLs.filter((r) => r != response.url());
+                            fileURLs = fileURLs.filter(
+                                (r) => r != response.url()
+                            );
+                        } catch (e) {}
                     }
                 });
             });
@@ -112,31 +120,31 @@ export async function downloadImagesLocally(
 }
 
 export async function scrapeWebnovel(
-    url: string,
     connectionInfo: PuppeteerConnectionInfo,
-    parserType: ParserOption,
-    concurrency: number,
-    timeout: number,
+    parserType: ParserType,
+    options: ScrapeSingleOptions,
     pb: MultiProgressBars
 ): Promise<Webnovel> {
-    let parser = findCorrectScraper(url);
+    let parser = findCorrectScraper(options.url);
     if (!parser)
-        printError(`parser not implemented for the url: ${chalk.dim(url)}`);
+        printError(
+            `parser not implemented for the url: ${chalk.dim(options.url)}`
+        );
 
-    pb.addTask(`Starting Connection ${url}`, {
+    pb.addTask(`Starting Connection ${options.url}`, {
         ...DefaultProgressBarCustomization,
         nameTransformFn: () => {
-            return `Starting Connection (${chalk.dim(url)})`;
+            return `Starting Connection (${chalk.dim(options.url)})`;
         },
     });
 
-    await parser.initialize(url, connectionInfo, timeout);
+    await parser.initialize(options.url, connectionInfo, options.timeout);
 
-    pb.done(`Starting Connection ${url}`);
-    pb.addTask(`Getting Metadata ${url}`, {
+    pb.done(`Starting Connection ${options.url}`);
+    pb.addTask(`Getting Metadata ${options.url}`, {
         ...DefaultProgressBarCustomization,
         nameTransformFn: () => {
-            return `Getting Metadata (${chalk.dim(url)})`;
+            return `Getting Metadata (${chalk.dim(options.url)})`;
         },
     });
 
@@ -144,45 +152,46 @@ export async function scrapeWebnovel(
     let author = await parser.getAuthor();
     let coverImageURL = await parser.getCoverImage();
 
-    pb.done(`Getting Metadata ${url}`);
+    pb.done(`Getting Metadata ${options.url}`);
     printLog(`title: ${title}`);
     printLog(`author: ${author}`);
 
-    pb.addTask(`Parsing Table of Contents ${url}`, {
+    pb.addTask(`Parsing Table of Contents ${options.url}`, {
         ...DefaultProgressBarCustomization,
-        nameTransformFn: () => `Parsing Table of Contents (${chalk.dim(url)})`,
+        nameTransformFn: () =>
+            `Parsing Table of Contents (${chalk.dim(options.url)})`,
     });
 
     let chapters = await parser.getAllChapters();
 
-    pb.done(`Parsing Table of Contents ${url}`, {
+    pb.done(`Parsing Table of Contents ${options.url}`, {
         nameTransformFn: () =>
             `Parsing Table of Contents (${chapters.length}/${
                 chapters.length
-            }) (${chalk.dim(url)})`,
+            }) (${chalk.dim(options.url)})`,
     });
 
     let pages: Page[] = [];
-    for (let i = 0; i < concurrency; i++) {
+    for (let i = 0; i < options.concurrencyPages; i++) {
         let newPage = await createNewPage(connectionInfo, false);
         pages.push(newPage);
     }
 
-    pb.addTask(`Scraping Chapters ${url}`, {
+    pb.addTask(`Scraping Chapters ${options.url}`, {
         ...DefaultProgressBarCustomization,
         type: "percentage",
-        nameTransformFn: () => `Scraping Chapters (${chalk.dim(url)})`,
+        nameTransformFn: () => `Scraping Chapters (${chalk.dim(options.url)})`,
         message: `0/${chapters.length}`,
     });
 
     let incrementPerChapter = 1 / chapters.length;
     let finished = 0;
 
-    await PromisePool.withConcurrency(concurrency)
+    await PromisePool.withConcurrency(options.concurrencyPages)
         .for(chapters)
         .onTaskFinished(() => {
             finished++;
-            pb.incrementTask(`Scraping Chapters ${url}`, {
+            pb.incrementTask(`Scraping Chapters ${options.url}`, {
                 percentage: incrementPerChapter,
                 message: `${finished}/${chapters.length}`,
             });
@@ -204,7 +213,7 @@ export async function scrapeWebnovel(
             return true;
         });
 
-    pb.done(`Scraping Chapters ${url}`);
+    pb.done(`Scraping Chapters ${options.url}`);
 
     for (let page of pages) {
         await page.close();

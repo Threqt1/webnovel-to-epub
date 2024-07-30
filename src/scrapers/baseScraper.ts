@@ -1,7 +1,7 @@
 import { PuppeteerConnectionInfo } from "../scraper.js";
 import { Chapter } from "../json.js";
 import { Page } from "puppeteer";
-import { ParserOption } from "../cli.js";
+import { ParserType } from "../cli.js";
 import { htmlifyContent } from "../strings.js";
 
 export abstract class Scraper {
@@ -17,7 +17,7 @@ export abstract class Scraper {
     abstract scrapeChapter(
         page: Page,
         chapter: Chapter,
-        parserType: ParserOption
+        parserType: ParserType
     ): Promise<void>;
     abstract matchUrl(url: string): boolean;
 
@@ -26,7 +26,7 @@ export abstract class Scraper {
         chapter: Chapter,
         contentSelector: string,
         timeout: number,
-        parserType: ParserOption
+        parserType: ParserType
     ) {
         await page.goto(chapter.url, {
             waitUntil: "domcontentloaded",
@@ -35,7 +35,7 @@ export abstract class Scraper {
 
         await page.waitForSelector(contentSelector);
 
-        if (parserType === ParserOption.TextOnly) {
+        if (parserType === ParserType.TextOnly) {
             let text = await page.$eval(contentSelector, (ele: any) =>
                 ele.innerText.trim()
             );

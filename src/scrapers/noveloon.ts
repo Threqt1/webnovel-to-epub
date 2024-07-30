@@ -1,5 +1,5 @@
 import { Page } from "puppeteer";
-import { ParserOption } from "../cli.js";
+import { ParserType } from "../cli.js";
 import { Chapter } from "../json.js";
 import { PuppeteerConnectionInfo } from "../scraper.js";
 import { Scraper } from "./baseScraper.js";
@@ -101,7 +101,7 @@ export default class NoveloonScraper extends Scraper {
     async scrapeChapter(
         page: Page,
         chapter: Chapter,
-        parserType: ParserOption
+        parserType: ParserType
     ): Promise<void> {
         return this.scrapePageHTML(
             page,

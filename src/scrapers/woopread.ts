@@ -2,7 +2,7 @@ import { Page } from "puppeteer";
 import { Scraper } from "./baseScraper.js";
 import { PuppeteerConnectionInfo } from "../scraper.js";
 import { Chapter } from "../json.js";
-import { ParserOption } from "../cli.js";
+import { ParserType } from "../cli.js";
 
 export default class WoopreadScraper extends Scraper {
     page: Page;
@@ -104,7 +104,7 @@ export default class WoopreadScraper extends Scraper {
                     });
                 }
             );
-            chapters = chapters.reverse();
+            chapters = chapters.reverse().slice(0, 3);
         }
 
         return chapters;
@@ -113,7 +113,7 @@ export default class WoopreadScraper extends Scraper {
     async scrapeChapter(
         page: Page,
         chapter: Chapter,
-        parserType: ParserOption
+        parserType: ParserType
     ): Promise<void> {
         return this.scrapePageHTML(
             page,

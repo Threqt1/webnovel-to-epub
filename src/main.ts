@@ -8,12 +8,13 @@ import {
     makeWebnovelOptionsSelectionPrompt,
     makeWriteEpubSelectionPrompt,
     makeWriteJSONSelectionPrompt,
-    ParserOption,
+    ParserType,
     ScraperOption,
     WebnovelOption,
     makeParsingOptionSelectionPrompt,
-    makeParserWithImagesSelectionPrompt,
-    ParserWithImagesOptions,
+    makeImageOptionsPrompt,
+    ParserOptions,
+    ImageOptions,
 } from "./cli.js";
 import { writeWebnovelToEpub } from "./epub.js";
 import {
@@ -35,14 +36,7 @@ async function main() {
     } catch (e) {}
     let scrapingOption = await makeScrapingOptionsSelectionPrompt();
     let parsingOption = await makeParsingOptionSelectionPrompt();
-
-    let extraParsingOptions: ParserWithImagesOptions | undefined;
-    switch (parsingOption) {
-        case ParserOption.WithImage:
-            extraParsingOptions = await makeParserWithImagesSelectionPrompt();
-            break;
-        default:
-    }
+    let imageOptions = await makeImageOptionsPrompt();
 
     let progressBars = new MultiProgressBars({
         initMessage: "Webnovel To Epub",
@@ -73,11 +67,12 @@ async function main() {
         persist: true,
         border: true,
     });
+
     await handleParseWebnovel(
         webnovel,
         parsingOption,
-        progressBars,
-        extraParsingOptions
+        imageOptions,
+        progressBars
     );
     progressBars.close();
 
@@ -90,7 +85,7 @@ async function main() {
     let webnovelOption = await makeWebnovelOptionsSelectionPrompt();
     switch (webnovelOption) {
         case WebnovelOption.WriteEpub:
-            await handleWriteEpub(webnovel, progressBars);
+            await handleWriteEpub(webnovel, imageOptions, progressBars);
             break;
         case WebnovelOption.WriteJSON:
             await handleWriteJSON(webnovel, progressBars);
@@ -106,7 +101,7 @@ async function main() {
 }
 
 async function handleScrapeSingle(
-    parserType: ParserOption,
+    parserOptions: ParserOptions,
     pb: MultiProgressBars
 ): Promise<Webnovel> {
     let options = await makeScrapeSingleSelectionPrompt();
@@ -120,11 +115,9 @@ async function handleScrapeSingle(
     pb.done("Starting Puppeteer");
 
     let webnovel = await scrapeWebnovel(
-        options.url,
         connectionInfo,
-        parserType,
-        options.concurrencyPages,
-        options.timeout,
+        parserOptions.parserType,
+        options,
         pb
     );
 
@@ -134,7 +127,7 @@ async function handleScrapeSingle(
 }
 
 async function handleScrapeMultiple(
-    parserType: ParserOption,
+    parserOptions: ParserOptions,
     pb: MultiProgressBars
 ): Promise<Webnovel> {
     let options = await makeScrapeMultipleSelectionPrompt();
@@ -150,11 +143,13 @@ async function handleScrapeMultiple(
     let webnovels = [];
     for (let url of options.webnovelURLs) {
         let webnovel = await scrapeWebnovel(
-            url,
             connectionInfo,
-            parserType,
-            options.concurrencyPages,
-            options.timeout,
+            parserOptions.parserType,
+            {
+                url,
+                concurrencyPages: options.concurrencyPages,
+                timeout: options.timeout,
+            },
             pb
         );
         webnovels.push(webnovel);
@@ -199,9 +194,9 @@ async function handleJSONMultiple(pb: MultiProgressBars): Promise<Webnovel> {
 
 async function handleParseWebnovel(
     webnovel: Webnovel,
-    parserType: ParserOption,
-    pb: MultiProgressBars,
-    extraOptions?: ParserWithImagesOptions
+    parserOptions: ParserOptions,
+    imageOptions: ImageOptions,
+    pb: MultiProgressBars
 ): Promise<Webnovel> {
     pb.addTask("Starting Puppeteer", {
         ...DefaultProgressBarCustomization,
@@ -211,19 +206,11 @@ async function handleParseWebnovel(
 
     pb.done("Starting Puppeteer");
 
-    extraOptions = extraOptions ?? {
-        timeout: 10000,
-        concurrencyPages: 1,
-        imageQuality: 80,
-    };
-
     let parsedWebnovel = await parseWebnovel(
         connectionInfo,
         webnovel,
-        parserType,
-        extraOptions.concurrencyPages,
-        extraOptions.timeout,
-        extraOptions.imageQuality,
+        parserOptions,
+        imageOptions,
         pb
     );
 
@@ -232,7 +219,11 @@ async function handleParseWebnovel(
     return parsedWebnovel;
 }
 
-async function handleWriteEpub(webnovel: Webnovel, pb: MultiProgressBars) {
+async function handleWriteEpub(
+    webnovel: Webnovel,
+    imageOptions: ImageOptions,
+    pb: MultiProgressBars
+) {
     let options = await makeWriteEpubSelectionPrompt();
 
     pb.addTask("Starting Puppeteer", {
@@ -248,7 +239,7 @@ async function handleWriteEpub(webnovel: Webnovel, pb: MultiProgressBars) {
         connectionInfo,
         options.savePath,
         options.timeout,
-        options.imageQuality,
+        imageOptions,
         pb
     );
 

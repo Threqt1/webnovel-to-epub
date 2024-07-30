@@ -1,4 +1,3 @@
-import { unlink } from "fs/promises";
 import {
     createNewPage,
     downloadImagesLocally,
@@ -10,13 +9,14 @@ import { Webnovel } from "./json.js";
 import chalk from "chalk";
 import { MultiProgressBars } from "multi-progress-bars";
 import { DefaultProgressBarCustomization, printLog } from "./logger.js";
+import { ImageOptions } from "./cli.js";
 
 export async function writeWebnovelToEpub(
     webnovel: Webnovel,
     connectionInfo: PuppeteerConnectionInfo,
     savePath: string,
     timeout: number,
-    quality: number,
+    imageOptions: ImageOptions,
     pb: MultiProgressBars
 ): Promise<void> {
     const Epub = (await import("epub-gen")).default;
@@ -35,7 +35,7 @@ export async function writeWebnovelToEpub(
             webnovel.coverImageURL,
             [webnovel.coverImageURL],
             timeout,
-            quality
+            imageOptions
         )
     )[webnovel.coverImageURL];
 
@@ -64,6 +64,4 @@ export async function writeWebnovelToEpub(
     ).promise;
 
     pb.done("Creating EPUB");
-
-    await unlink(coverImagePath);
 }

@@ -10,17 +10,15 @@ import { MultiProgressBars } from "multi-progress-bars";
 import { DefaultProgressBarCustomization } from "./logger.js";
 import { PromisePool } from "@supercharge/promise-pool";
 import chalk from "chalk";
-import { ParserOption } from "./cli.js";
+import { ImageOptions, ParserOptions, ParserType } from "./cli.js";
 
 const MAX_TRIES = 3;
 
 export async function parseWebnovel(
     connectionInfo: PuppeteerConnectionInfo,
     webnovel: Webnovel,
-    parserType: ParserOption,
-    concurrency: number,
-    timeout: number,
-    quality: number,
+    parserOptions: ParserOptions,
+    imageOptions: ImageOptions,
     pb: MultiProgressBars
 ): Promise<Webnovel> {
     pb.addTask(`Parsing Chapters ${webnovel.title}`, {
@@ -36,12 +34,12 @@ export async function parseWebnovel(
     let finished = 0;
 
     let pages: Page[] = [];
-    for (let i = 0; i < concurrency; i++) {
+    for (let i = 0; i < parserOptions.concurrencyPages; i++) {
         let newPage = await createNewPage(connectionInfo, true);
         pages.push(newPage);
     }
 
-    await PromisePool.withConcurrency(concurrency)
+    await PromisePool.withConcurrency(parserOptions.concurrencyPages)
         .for(webnovel.chapters)
         .onTaskFinished(() => {
             finished++;
@@ -59,9 +57,8 @@ export async function parseWebnovel(
                     await parseChapter(
                         page,
                         chapter,
-                        parserType,
-                        timeout,
-                        quality
+                        parserOptions,
+                        imageOptions
                     );
                 } catch (e) {
                     tries++;
@@ -99,14 +96,13 @@ const BANNED_TAGS = [
 export async function parseChapter(
     page: Page,
     chapter: Chapter,
-    parserType: ParserOption,
-    timeout: number,
-    quality: number
+    parserOptions: ParserOptions,
+    imageOptions: ImageOptions
 ): Promise<void> {
     let $ = cheerio.load(chapter.content);
 
     let realBannedTags =
-        parserType === ParserOption.WithImage
+        parserOptions.parserType === ParserType.WithImage
             ? BANNED_TAGS
             : BANNED_TAGS.concat("img");
 
@@ -116,13 +112,13 @@ export async function parseChapter(
         $ele.remove();
     });
 
-    if (parserType === ParserOption.WithFormat) {
+    if (parserOptions.parserType === ParserType.WithFormat) {
         chapter.content = $.html();
         chapter.hasBeenParsed = true;
         return;
     }
 
-    await parseImages(page, chapter, $, timeout, quality);
+    await parseImages(page, chapter, $, parserOptions, imageOptions);
 
     chapter.content = $.html();
     chapter.hasBeenParsed = true;
@@ -134,8 +130,8 @@ export async function parseImages(
     page: Page,
     chapter: Chapter,
     $: cheerio.CheerioAPI,
-    timeout: number,
-    quality: number
+    parserOptions: ParserOptions,
+    imageOptions: ImageOptions
 ): Promise<void> {
     let imageURLs = [];
     $("img").each((_, ele) => {
@@ -151,8 +147,8 @@ export async function parseImages(
         page,
         chapter.url,
         imageURLs,
-        timeout,
-        quality
+        parserOptions.timeout,
+        imageOptions
     );
 
     $("img").each((_, ele) => {

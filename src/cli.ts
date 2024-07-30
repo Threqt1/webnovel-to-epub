@@ -80,7 +80,11 @@ export async function makeScrapeSingleSelectionPrompt(): Promise<ScrapeSingleOpt
         },
     ]);
 
-    return answers;
+    return {
+        url: answers.url,
+        concurrencyPages: answers.concurrencyPages,
+        timeout: answers.timeout,
+    };
 }
 
 export type ScrapeMultipleOptions = {
@@ -142,8 +146,10 @@ export async function makeScrapeMultipleSelectionPrompt(): Promise<ScrapeMultipl
         },
     ]);
     return {
-        ...answers,
         webnovelURLs: answers.webnovelURLs.replace(/ /g, "").split(","),
+        indexToKeepData: answers.indexToKeepData,
+        concurrencyPages: answers.concurrencyPages,
+        timeout: answers.timeout,
     };
 }
 
@@ -212,13 +218,19 @@ export async function makeJSONMultipleSelectionPrompt(): Promise<JSONMultipleOpt
     return answers;
 }
 
-export enum ParserOption {
+export enum ParserType {
     WithImage,
     WithFormat,
     TextOnly,
 }
 
-export async function makeParsingOptionSelectionPrompt(): Promise<ParserOption> {
+export type ParserOptions = {
+    parserType: ParserType;
+    concurrencyPages: number;
+    timeout: number;
+};
+
+export async function makeParsingOptionSelectionPrompt(): Promise<ParserOptions> {
     let answer = await inquirer.prompt([
         {
             type: "list",
@@ -227,30 +239,61 @@ export async function makeParsingOptionSelectionPrompt(): Promise<ParserOption> 
             choices: [
                 {
                     name: "Keep the chapter's format and images (slow)",
-                    value: ParserOption.WithImage,
+                    value: ParserType.WithImage,
                 },
                 {
                     name: "Keep the chapter's format only (slowish)",
-                    value: ParserOption.WithFormat,
+                    value: ParserType.WithFormat,
                 },
                 {
                     name: "Keep the chapter's text only (fast)",
-                    value: ParserOption.TextOnly,
+                    value: ParserType.TextOnly,
                 },
             ],
         },
+        {
+            type: "number",
+            message:
+                "Enter the maximum amount of concurrent pages to parse with (default 3)",
+            name: "concurrencyPages",
+            validate: (input: number) => {
+                return !isNaN(input);
+            },
+            default: 3,
+            when: (answers) => {
+                return answers["action"] === ParserType.WithImage;
+            },
+        },
+        {
+            type: "number",
+            message:
+                "Enter the maximum timeout for a page to load (recommended 10000ms)",
+            name: "timeout",
+            validate: (input: number) => {
+                return !isNaN(input);
+            },
+            default: 10000,
+            when: (answers) => {
+                return answers["action"] === ParserType.WithImage;
+            },
+        },
     ]);
 
-    return ParserOption[ParserOption[answer.action]];
+    return {
+        parserType: ParserType[ParserType[answer.action]],
+        concurrencyPages: answer.concurrencyPages ?? 0,
+        timeout: answer.timeout ?? 0,
+    };
 }
 
-export type ParserWithImagesOptions = {
+export type ImageOptions = {
     imageQuality: number;
-    concurrencyPages: number;
-    timeout: number;
+    shouldResize: boolean;
+    width: number;
+    height: number;
 };
 
-export async function makeParserWithImagesSelectionPrompt(): Promise<ParserWithImagesOptions> {
+export async function makeImageOptionsPrompt(): Promise<ImageOptions> {
     let answer = await inquirer.prompt([
         {
             type: "number",
@@ -263,28 +306,42 @@ export async function makeParserWithImagesSelectionPrompt(): Promise<ParserWithI
             default: 80,
         },
         {
-            type: "number",
+            type: "confirm",
             message:
-                "Enter the maximum amount of concurrent pages to parse with (default 3)",
-            name: "concurrencyPages",
-            validate: (input: number) => {
-                return !isNaN(input);
-            },
-            default: 3,
+                "Would you like to resize the images? This may help further reduce file size",
+            name: "shouldResize",
+            default: false,
         },
         {
             type: "number",
-            message:
-                "Enter the maximum timeout for a page to load (recommended 10000ms)",
-            name: "timeout",
+            message: "Enter the maximum width of the resized images",
+            name: "width",
             validate: (input: number) => {
                 return !isNaN(input);
             },
-            default: 10000,
+            when: (answers) => {
+                return answers["shouldResize"] === true;
+            },
+        },
+        {
+            type: "number",
+            message: "Enter the maximum height of the resized images",
+            name: "height",
+            validate: (input: number) => {
+                return !isNaN(input);
+            },
+            when: (answers) => {
+                return answers["shouldResize"] === true;
+            },
         },
     ]);
 
-    return answer;
+    return {
+        imageQuality: answer.imageQuality,
+        shouldResize: answer.shouldResize,
+        width: answer.width ?? 0,
+        height: answer.height ?? 0,
+    };
 }
 
 export enum WebnovelOption {
@@ -315,23 +372,12 @@ export async function makeWebnovelOptionsSelectionPrompt(): Promise<WebnovelOpti
 }
 
 export type WriteEpubOptions = {
-    imageQuality: number;
     savePath: string;
     timeout: number;
 };
 
 export async function makeWriteEpubSelectionPrompt(): Promise<WriteEpubOptions> {
     let answer = await inquirer.prompt([
-        {
-            type: "number",
-            message:
-                "Enter the quality the cover image should be compressed to (recommended 80%) (helps with file size)",
-            name: "imageQuality",
-            validate: (input: number) => {
-                return !isNaN(input);
-            },
-            default: 80,
-        },
         {
             type: "file-tree-selection",
             enableGoUpperDirectory: true,
