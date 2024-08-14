@@ -22,11 +22,12 @@
         "forceConsistentCasingInFileNames": true,
         "noFallthroughCasesInSwitch": true,
         "noImplicitReturns": true,
-        "noImplicitAny": false,
+        "noImplicitAny": true,
         "noImplicitThis": false,
         "strictNullChecks": false
     },
     "include": [
         "src/**/*",
+        "types/**/*"
     ]
 }

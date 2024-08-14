@@ -1,29 +1,32 @@
-import { Page } from "puppeteer";
-import { ParserType } from "../cli.js";
-import { Chapter } from "../json.js";
-import { PuppeteerConnectionInfo } from "../scraper.js";
+import { Page } from "puppeteer-core";
 import { Scraper } from "./baseScraper.js";
+import {
+    Chapter,
+    ConnectionInfo,
+    ParsingType,
+    ScrapingOptions,
+} from "../structs.js";
 
 export default class NoveloonScraper extends Scraper {
     page: Page;
-    baseUrl: string;
+    url: string;
     initialSetupComplete: boolean;
-    timeout: number;
+    scrapingOps: ScrapingOptions;
 
     async initialize(
-        baseUrl: string,
-        connectionInfo: PuppeteerConnectionInfo,
-        timeout: number
+        url: string,
+        connectionInfo: ConnectionInfo,
+        scrapingOps: ScrapingOptions
     ): Promise<void> {
         this.page = connectionInfo.page;
 
-        await this.page.goto(baseUrl, {
+        await this.page.goto(url, {
             waitUntil: "domcontentloaded",
-            timeout: timeout,
+            timeout: scrapingOps.timeout,
         });
 
-        this.timeout = timeout;
-        this.baseUrl = baseUrl;
+        this.url = url;
+        this.scrapingOps = scrapingOps;
         this.initialSetupComplete = true;
     }
 
@@ -70,7 +73,7 @@ export default class NoveloonScraper extends Scraper {
                 (elements) => {
                     return elements.map((element) => {
                         return {
-                            title: element.innerText,
+                            title: element.querySelector("h3").innerText,
                             url: element.href,
                             hasBeenScraped: false,
                             hasBeenParsed: false,
@@ -101,14 +104,14 @@ export default class NoveloonScraper extends Scraper {
     async scrapeChapter(
         page: Page,
         chapter: Chapter,
-        parserType: ParserType
+        parsingType: ParsingType
     ): Promise<void> {
         return this.scrapePageHTML(
             page,
             chapter,
             "main div article",
-            this.timeout,
-            parserType
+            parsingType,
+            this.scrapingOps
         );
     }
 

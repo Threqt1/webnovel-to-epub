@@ -1,14 +1,17 @@
-import { PuppeteerConnectionInfo } from "../scraper.js";
-import { Chapter } from "../json.js";
-import { Page } from "puppeteer";
-import { ParserType } from "../cli.js";
+import { Page } from "puppeteer-core";
 import { htmlifyContent } from "../strings.js";
+import {
+    Chapter,
+    ConnectionInfo,
+    ParsingType,
+    ScrapingOptions,
+} from "../structs.js";
 
 export abstract class Scraper {
     abstract initialize(
         baseUrl: string,
-        connectionInfo: PuppeteerConnectionInfo,
-        timeout: number
+        connectionInfo: ConnectionInfo,
+        scrapingOps: ScrapingOptions
     ): Promise<void>;
     abstract getTitle(): Promise<string>;
     abstract getAuthor(): Promise<string>;
@@ -17,7 +20,7 @@ export abstract class Scraper {
     abstract scrapeChapter(
         page: Page,
         chapter: Chapter,
-        parserType: ParserType
+        parsingType: ParsingType
     ): Promise<void>;
     abstract matchUrl(url: string): boolean;
 
@@ -25,17 +28,17 @@ export abstract class Scraper {
         page: Page,
         chapter: Chapter,
         contentSelector: string,
-        timeout: number,
-        parserType: ParserType
+        parsingType: ParsingType,
+        scrapingOps: ScrapingOptions
     ) {
         await page.goto(chapter.url, {
             waitUntil: "domcontentloaded",
-            timeout: timeout,
+            timeout: scrapingOps.timeout,
         });
 
         await page.waitForSelector(contentSelector);
 
-        if (parserType === ParserType.TextOnly) {
+        if (parsingType === ParsingType.TextOnly) {
             let text = await page.$eval(contentSelector, (ele: any) =>
                 ele.innerText.trim()
             );
@@ -51,7 +54,7 @@ export abstract class Scraper {
         }
     }
 
-    protected baseMatchURL(url, urls: string[]): boolean {
+    protected baseMatchURL(url: string, urls: string[]): boolean {
         let parsed = new URL(url);
 
         return urls.includes(

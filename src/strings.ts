@@ -1,5 +1,7 @@
 import { join } from "path";
 
+export const TEMP_FILE_PATH = join(import.meta.dirname, ".", "temp");
+
 export function sanitizeFilename(filename: string) {
     return filename
         .toLowerCase()
@@ -11,8 +13,6 @@ export function sanitizeFilename(filename: string) {
 export function htmlifyContent(content: string) {
     return `<p>${content.replace(/\n/g, "</p><p>")}</p>`;
 }
-
-export const TEMP_FILE_PATH = join(import.meta.dirname, "..", "temp");
 
 export function getFilePathFromURL(url: string, defaultExtension = "png") {
     let fileNameSplit = url.split("/").at(-1).split(".");

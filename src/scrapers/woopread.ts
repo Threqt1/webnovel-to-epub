@@ -1,33 +1,36 @@
-import { Page } from "puppeteer";
+import { Page } from "puppeteer-core";
 import { Scraper } from "./baseScraper.js";
-import { PuppeteerConnectionInfo } from "../scraper.js";
-import { Chapter } from "../json.js";
-import { ParserType } from "../cli.js";
+import {
+    Chapter,
+    ConnectionInfo,
+    ParsingType,
+    ScrapingOptions,
+} from "../structs.js";
 
 export default class WoopreadScraper extends Scraper {
     page: Page;
-    baseUrl: string;
+    url: string;
     initialSetupComplete: boolean;
-    timeout: number;
+    scrapingOps: ScrapingOptions;
 
     constructor() {
         super();
     }
 
     async initialize(
-        baseUrl: string,
-        connectionInfo: PuppeteerConnectionInfo,
-        timeout: number
+        url: string,
+        connectionInfo: ConnectionInfo,
+        scrapingOps: ScrapingOptions
     ): Promise<void> {
         this.page = connectionInfo.page;
 
-        await this.page.goto(baseUrl, {
+        await this.page.goto(url, {
             waitUntil: "domcontentloaded",
-            timeout: timeout,
+            timeout: scrapingOps.timeout,
         });
 
-        this.timeout = timeout;
-        this.baseUrl = baseUrl;
+        this.url = url;
+        this.scrapingOps = scrapingOps;
         this.initialSetupComplete = true;
     }
 
@@ -72,14 +75,17 @@ export default class WoopreadScraper extends Scraper {
             chapters = await this.page.$$eval(
                 "div#manga-chapters-holder ul.sub-chap-list",
                 (volumes) => {
-                    let localChapters = [];
+                    let localChapters: Chapter[] = [];
                     for (let volume of volumes) {
-                        let volumeChapters = [];
+                        let volumeChapters: Chapter[] = [];
                         let links = volume.querySelectorAll("li a");
                         links.forEach((link: HTMLAnchorElement) => {
                             volumeChapters.push({
                                 title: link.innerText.trim(),
                                 url: link.href,
+                                hasBeenParsed: false,
+                                hasBeenScraped: false,
+                                content: "",
                             });
                         });
                         localChapters = localChapters.concat(
@@ -113,14 +119,14 @@ export default class WoopreadScraper extends Scraper {
     async scrapeChapter(
         page: Page,
         chapter: Chapter,
-        parserType: ParserType
+        parsingType: ParsingType
     ): Promise<void> {
         return this.scrapePageHTML(
             page,
             chapter,
             "div.reading-content",
-            this.timeout,
-            parserType
+            parsingType,
+            this.scrapingOps
         );
     }
 

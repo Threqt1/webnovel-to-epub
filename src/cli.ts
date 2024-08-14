@@ -2,6 +2,7 @@ import inquirer from "inquirer";
 import FileTreeSelectionPrompt from "inquirer-file-tree-selection-prompt";
 import download from "downloads-folder";
 import urlRegex from "url-regex";
+import { ImageOptions, ParsingType } from "./structs.js";
 inquirer.registerPrompt("file-tree-selection", FileTreeSelectionPrompt);
 
 export enum ScraperOption {
@@ -38,10 +39,12 @@ export async function makeScrapingOptionsSelectionPrompt(): Promise<ScraperOptio
         },
     ]);
 
-    return ScraperOption[ScraperOption[answer.action]];
+    return ScraperOption[
+        ScraperOption[answer.action] as any
+    ] as unknown as ScraperOption;
 }
 
-export type ScrapeSingleOptions = {
+type ScrapeSingleOptions = {
     url: string;
     concurrencyPages: number;
     timeout: number;
@@ -87,7 +90,7 @@ export async function makeScrapeSingleSelectionPrompt(): Promise<ScrapeSingleOpt
     };
 }
 
-export type ScrapeMultipleOptions = {
+type ScrapeMultipleOptions = {
     webnovelURLs: string[];
     indexToKeepData: number;
     concurrencyPages: number;
@@ -119,7 +122,7 @@ export async function makeScrapeMultipleSelectionPrompt(): Promise<ScrapeMultipl
                 return answers.webnovelURLs
                     .replace(/ /g, "")
                     .split(",")
-                    .map((path, index) => {
+                    .map((path: string, index: number) => {
                         return { name: path, value: index };
                     });
             },
@@ -153,7 +156,7 @@ export async function makeScrapeMultipleSelectionPrompt(): Promise<ScrapeMultipl
     };
 }
 
-export type JSONSingleOptions = {
+type JSONSingleOptions = {
     readPath: string;
 };
 
@@ -179,7 +182,7 @@ export async function makeJSONSingleSelectionPrompt(): Promise<JSONSingleOptions
     return answers;
 }
 
-export type JSONMultipleOptions = {
+type JSONMultipleOptions = {
     readPaths: string[];
     indexToKeepData: number;
 };
@@ -208,7 +211,7 @@ export async function makeJSONMultipleSelectionPrompt(): Promise<JSONMultipleOpt
             message:
                 "Select the path to keep metadata from (title, author, etc):\n",
             choices: (answers) => {
-                return answers.readPaths.map((path, index) => {
+                return answers.readPaths.map((path: string, index: number) => {
                     return { name: path, value: index };
                 });
             },
@@ -218,14 +221,8 @@ export async function makeJSONMultipleSelectionPrompt(): Promise<JSONMultipleOpt
     return answers;
 }
 
-export enum ParserType {
-    WithImage,
-    WithFormat,
-    TextOnly,
-}
-
 export type ParserOptions = {
-    parserType: ParserType;
+    parsingType: ParsingType;
     concurrencyPages: number;
     timeout: number;
 };
@@ -239,15 +236,15 @@ export async function makeParsingOptionSelectionPrompt(): Promise<ParserOptions>
             choices: [
                 {
                     name: "Keep the chapter's format and images (slow)",
-                    value: ParserType.WithImage,
+                    value: ParsingType.WithImage,
                 },
                 {
                     name: "Keep the chapter's format only (slowish)",
-                    value: ParserType.WithFormat,
+                    value: ParsingType.WithFormat,
                 },
                 {
                     name: "Keep the chapter's text only (fast)",
-                    value: ParserType.TextOnly,
+                    value: ParsingType.TextOnly,
                 },
             ],
         },
@@ -261,7 +258,7 @@ export async function makeParsingOptionSelectionPrompt(): Promise<ParserOptions>
             },
             default: 3,
             when: (answers) => {
-                return answers["action"] === ParserType.WithImage;
+                return answers["action"] === ParsingType.WithImage;
             },
         },
         {
@@ -274,24 +271,19 @@ export async function makeParsingOptionSelectionPrompt(): Promise<ParserOptions>
             },
             default: 10000,
             when: (answers) => {
-                return answers["action"] === ParserType.WithImage;
+                return answers["action"] === ParsingType.WithImage;
             },
         },
     ]);
 
     return {
-        parserType: ParserType[ParserType[answer.action]],
+        parsingType: ParsingType[
+            ParsingType[answer.action] as any
+        ] as unknown as ParsingType,
         concurrencyPages: answer.concurrencyPages ?? 0,
         timeout: answer.timeout ?? 0,
     };
 }
-
-export type ImageOptions = {
-    imageQuality: number;
-    shouldResize: boolean;
-    width: number;
-    height: number;
-};
 
 export async function makeImageOptionsPrompt(): Promise<ImageOptions> {
     let answer = await inquirer.prompt([
@@ -337,19 +329,19 @@ export async function makeImageOptionsPrompt(): Promise<ImageOptions> {
     ]);
 
     return {
-        imageQuality: answer.imageQuality,
+        quality: answer.imageQuality,
         shouldResize: answer.shouldResize,
-        width: answer.width ?? 0,
-        height: answer.height ?? 0,
+        maxWidth: answer.width ?? 0,
+        maxHeight: answer.height ?? 0,
     };
 }
 
-export enum WebnovelOption {
+export enum ExportOption {
     WriteEpub = 0,
     WriteJSON = 1,
 }
 
-export async function makeWebnovelOptionsSelectionPrompt(): Promise<WebnovelOption> {
+export async function makeExportOptionsSelectionPrompt(): Promise<ExportOption> {
     let answer = await inquirer.prompt([
         {
             type: "list",
@@ -358,20 +350,22 @@ export async function makeWebnovelOptionsSelectionPrompt(): Promise<WebnovelOpti
             choices: [
                 {
                     name: "Write the webnovel to a epub file",
-                    value: WebnovelOption.WriteEpub,
+                    value: ExportOption.WriteEpub,
                 },
                 {
                     name: "Write the webnovel to a JSON file",
-                    value: WebnovelOption.WriteJSON,
+                    value: ExportOption.WriteJSON,
                 },
             ],
         },
     ]);
 
-    return WebnovelOption[WebnovelOption[answer.action]];
+    return ExportOption[
+        ExportOption[answer.action] as any
+    ] as unknown as ExportOption;
 }
 
-export type WriteEpubOptions = {
+type WriteEpubOptions = {
     savePath: string;
     timeout: number;
 };
@@ -401,7 +395,7 @@ export async function makeWriteEpubSelectionPrompt(): Promise<WriteEpubOptions> 
     return answer;
 }
 
-export type WriteJSONOptions = {
+type WriteJSONOptions = {
     savePath: string;
 };
 

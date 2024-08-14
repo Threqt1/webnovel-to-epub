@@ -1,31 +1,31 @@
-import {
-    createNewPage,
-    downloadImagesLocally,
-    PuppeteerConnectionInfo,
-} from "./scraper.js";
+import { createNewPage, downloadImagesLocally } from "./scraper.js";
 import { sanitizeFilename } from "./strings.js";
 import { join } from "path";
-import { Webnovel } from "./json.js";
-import chalk from "chalk";
+import {
+    ConnectionInfo,
+    FileSystemOptions,
+    ImageOptions,
+    ScrapingOptions,
+    Webnovel,
+} from "./structs.js";
 import { MultiProgressBars } from "multi-progress-bars";
-import { DefaultProgressBarCustomization, printLog } from "./logger.js";
-import { ImageOptions } from "./cli.js";
+import { DefaultProgressBarCustomization } from "./logger.js";
 
 export async function writeWebnovelToEpub(
     webnovel: Webnovel,
-    connectionInfo: PuppeteerConnectionInfo,
-    savePath: string,
-    timeout: number,
-    imageOptions: ImageOptions,
+    connectionInfo: ConnectionInfo,
+    fsOps: FileSystemOptions,
+    scrapingOps: ScrapingOptions,
+    imageOps: ImageOptions,
     pb: MultiProgressBars
 ): Promise<void> {
     const Epub = (await import("epub-gen")).default;
 
-    pb.addTask("Downloading Cover Image", {
+    pb.addTask(`cover image`, {
         ...DefaultProgressBarCustomization,
+        nameTransformFn: () =>
+            `downloading cover image at url ${webnovel.coverImageURL}...`,
     });
-
-    printLog(`cover image located at url ${chalk.dim(webnovel.coverImageURL)}`);
 
     let page = await createNewPage(connectionInfo, true);
 
@@ -34,12 +34,19 @@ export async function writeWebnovelToEpub(
             page,
             webnovel.coverImageURL,
             [webnovel.coverImageURL],
-            timeout,
-            imageOptions
+            scrapingOps,
+            imageOps
         )
     )[webnovel.coverImageURL];
 
-    pb.done("Downloading Cover Image");
+    pb.done(`cover image`, {
+        nameTransformFn: () => `downloaded cover image`,
+    });
+
+    pb.addTask(`epub`, {
+        ...DefaultProgressBarCustomization,
+        nameTransformFn: () => `writing to epub...`,
+    });
 
     const epubOptions = {
         title: webnovel.title,
@@ -54,14 +61,12 @@ export async function writeWebnovelToEpub(
         tocTitle: "Table of Contents",
     };
 
-    pb.addTask("Creating EPUB", {
-        ...DefaultProgressBarCustomization,
-    });
-
     await new Epub(
         epubOptions,
-        join(savePath, `${sanitizeFilename(webnovel.title)}.epub`)
+        join(fsOps.path, `${sanitizeFilename(webnovel.title)}.epub`)
     ).promise;
 
-    pb.done("Creating EPUB");
+    pb.done(`epub`, {
+        nameTransformFn: () => `wrote to epub`,
+    });
 }

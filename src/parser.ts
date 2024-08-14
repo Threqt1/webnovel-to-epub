@@ -1,50 +1,52 @@
-import { Page } from "puppeteer";
-import { Chapter, Webnovel } from "./json.js";
-import {
-    createNewPage,
-    downloadImagesLocally,
-    PuppeteerConnectionInfo,
-} from "./scraper.js";
+import { Page } from "puppeteer-core";
+import { createNewPage, downloadImagesLocally } from "./scraper.js";
 import * as cheerio from "cheerio";
+
+import { PromisePool } from "@supercharge/promise-pool";
+import {
+    Chapter,
+    ConnectionInfo,
+    ImageOptions,
+    ParsingType,
+    ScrapingOptions,
+    Webnovel,
+} from "./structs.js";
 import { MultiProgressBars } from "multi-progress-bars";
 import { DefaultProgressBarCustomization } from "./logger.js";
-import { PromisePool } from "@supercharge/promise-pool";
-import chalk from "chalk";
-import { ImageOptions, ParserOptions, ParserType } from "./cli.js";
 
 const MAX_TRIES = 3;
 
 export async function parseWebnovel(
-    connectionInfo: PuppeteerConnectionInfo,
     webnovel: Webnovel,
-    parserOptions: ParserOptions,
-    imageOptions: ImageOptions,
+    connectionInfo: ConnectionInfo,
+    parsingType: ParsingType,
+    scrapingOps: ScrapingOptions,
+    imageOps: ImageOptions,
     pb: MultiProgressBars
 ): Promise<Webnovel> {
-    pb.addTask(`Parsing Chapters ${webnovel.title}`, {
-        ...DefaultProgressBarCustomization,
-        type: "percentage",
-        message: `0/${webnovel.chapters.length}`,
-        nameTransformFn: () => {
-            return `Parsing Chapters (${chalk.dim(webnovel.title)})`;
-        },
-    });
-
-    let incrementPerChapter = 1 / webnovel.chapters.length;
-    let finished = 0;
-
     let pages: Page[] = [];
-    for (let i = 0; i < parserOptions.concurrencyPages; i++) {
+
+    for (let i = 0; i < scrapingOps.concurrency; i++) {
         let newPage = await createNewPage(connectionInfo, true);
         pages.push(newPage);
     }
 
-    await PromisePool.withConcurrency(parserOptions.concurrencyPages)
+    pb.addTask(`parsing`, {
+        ...DefaultProgressBarCustomization,
+        nameTransformFn: () => `parsing chapters...`,
+        message: `0/${webnovel.chapters.length}`,
+        type: "percentage",
+    });
+
+    let increment = 1 / webnovel.chapters.length;
+    let finished = 0;
+
+    await PromisePool.withConcurrency(scrapingOps.concurrency)
         .for(webnovel.chapters)
         .onTaskFinished(() => {
             finished++;
-            pb.incrementTask(`Parsing Chapters ${webnovel.title}`, {
-                percentage: incrementPerChapter,
+            pb.incrementTask(`parsing`, {
+                percentage: increment,
                 message: `${finished}/${webnovel.chapters.length}`,
             });
         })
@@ -57,8 +59,9 @@ export async function parseWebnovel(
                     await parseChapter(
                         page,
                         chapter,
-                        parserOptions,
-                        imageOptions
+                        parsingType,
+                        scrapingOps,
+                        imageOps
                     );
                 } catch (e) {
                     tries++;
@@ -69,7 +72,9 @@ export async function parseWebnovel(
             return true;
         });
 
-    pb.done(`Parsing Chapters ${webnovel.title}`);
+    pb.done(`parsing`, {
+        nameTransformFn: () => `parsed chapters`,
+    });
 
     for (let page of pages) {
         await page.close();
@@ -96,13 +101,14 @@ const BANNED_TAGS = [
 export async function parseChapter(
     page: Page,
     chapter: Chapter,
-    parserOptions: ParserOptions,
-    imageOptions: ImageOptions
+    parsingType: ParsingType,
+    scrapingOps: ScrapingOptions,
+    imageOps: ImageOptions
 ): Promise<void> {
     let $ = cheerio.load(chapter.content);
 
     let realBannedTags =
-        parserOptions.parserType === ParserType.WithImage
+        parsingType === ParsingType.WithImage
             ? BANNED_TAGS
             : BANNED_TAGS.concat("img");
 
@@ -112,13 +118,13 @@ export async function parseChapter(
         $ele.remove();
     });
 
-    if (parserOptions.parserType === ParserType.WithFormat) {
+    if (parsingType === ParsingType.WithFormat) {
         chapter.content = $.html();
         chapter.hasBeenParsed = true;
         return;
     }
 
-    await parseImages(page, chapter, $, parserOptions, imageOptions);
+    await parseImages(page, chapter, $, scrapingOps, imageOps);
 
     chapter.content = $.html();
     chapter.hasBeenParsed = true;
@@ -130,10 +136,10 @@ export async function parseImages(
     page: Page,
     chapter: Chapter,
     $: cheerio.CheerioAPI,
-    parserOptions: ParserOptions,
-    imageOptions: ImageOptions
+    scrapingOps: ScrapingOptions,
+    imageOps: ImageOptions
 ): Promise<void> {
-    let imageURLs = [];
+    let imageURLs: string[] = [];
     $("img").each((_, ele) => {
         let $ele = $(ele);
         imageURLs.push($ele.attr("src"));
@@ -147,8 +153,8 @@ export async function parseImages(
         page,
         chapter.url,
         imageURLs,
-        parserOptions.timeout,
-        imageOptions
+        scrapingOps,
+        imageOps
     );
 
     $("img").each((_, ele) => {
