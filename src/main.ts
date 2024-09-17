@@ -21,7 +21,7 @@ import {
     ScraperOption,
 } from "./cli.js";
 import { MultiProgressBars } from "multi-progress-bars";
-import { ImageOptions, ParsingType, Webnovel } from "./structs.js";
+import { ConnectionInfo, ImageOptions, ParsingType, Webnovel } from "./structs.js";
 import { makeNewConnection, scrapeWebnovel } from "./scraper.js";
 import {
     combineWebnovels,
@@ -40,6 +40,8 @@ function createProgressBars() {
     });
 }
 
+let CONNECTON_INFO: ConnectionInfo | undefined;
+
 async function main() {
     try {
         printLog("making temp dir");
@@ -53,6 +55,14 @@ async function main() {
     let imageOptions = await makeImageOptionsPrompt();
 
     let pb = createProgressBars();
+
+    pb.addTask("starting puppeteer...", DefaultProgressBarCustomization);
+
+    CONNECTON_INFO = await makeNewConnection();
+
+    pb.done("starting puppeteer...", {
+        nameTransformFn: () => `started puppeteer`,
+    });
 
     let webnovel: Webnovel | null;
     switch (scrapingOption) {
@@ -109,11 +119,12 @@ async function main() {
 
     try {
         printLog("cleaning up temp dir");
+        await CONNECTON_INFO.browser.close()
         await rm(TEMP_FILE_PATH, {
             recursive: true,
             force: true,
         });
-    } catch (e) {}
+    } catch (e) { }
 }
 
 async function handleScrapeSingle(
@@ -122,19 +133,11 @@ async function handleScrapeSingle(
 ) {
     let options = await makeScrapeSingleSelectionPrompt();
 
-    pb.addTask("starting puppeteer...", DefaultProgressBarCustomization);
-
-    let connInfo = await makeNewConnection();
-
-    pb.done("starting puppeteer...", {
-        nameTransformFn: () => `started puppeteer`,
-    });
-
     let webnovel: Webnovel | undefined;
     try {
         webnovel = await scrapeWebnovel(
             options.url,
-            connInfo,
+            CONNECTON_INFO,
             parsingType,
             {
                 concurrency: options.concurrencyPages,
@@ -147,10 +150,6 @@ async function handleScrapeSingle(
         printError(`failed to parse webnovel at url ${options.url}`);
     }
 
-    try {
-        await connInfo.browser.close();
-    } catch (e) {}
-
     return webnovel;
 }
 
@@ -160,21 +159,13 @@ async function handleScrapeMultiple(
 ) {
     let options = await makeScrapeMultipleSelectionPrompt();
 
-    pb.addTask("starting puppeteer...", DefaultProgressBarCustomization);
-
-    let connInfo = await makeNewConnection();
-
-    pb.done("starting puppeteer...", {
-        nameTransformFn: () => `started puppeteer`,
-    });
-
     let webnovels: Webnovel[] = [];
     for (let url of options.webnovelURLs) {
         let webnovel: Webnovel | undefined;
         try {
             webnovel = await scrapeWebnovel(
                 url,
-                connInfo,
+                CONNECTON_INFO,
                 parsingType,
                 {
                     concurrency: options.concurrencyPages,
@@ -189,9 +180,6 @@ async function handleScrapeMultiple(
         if (webnovel) webnovels.push(webnovel);
     }
 
-    try {
-        await connInfo.browser.close();
-    } catch (e) {}
     if (webnovels.length == 0) return null;
 
     let combined = await combineWebnovels(webnovels, options.indexToKeepData);
@@ -245,19 +233,11 @@ async function handleParseWebnovel(
     imageOptions: ImageOptions,
     pb: MultiProgressBars
 ) {
-    pb.addTask("starting puppeteer...", DefaultProgressBarCustomization);
-
-    let connInfo = await makeNewConnection();
-
-    pb.done("starting puppeteer...", {
-        nameTransformFn: () => `started puppeteer`,
-    });
-
     let parsedNovel: Webnovel | undefined;
     try {
         parsedNovel = await parseWebnovel(
             webnovel,
-            connInfo,
+            CONNECTON_INFO,
             parserOptions.parsingType,
             {
                 concurrency: parserOptions.concurrencyPages,
@@ -266,11 +246,7 @@ async function handleParseWebnovel(
             imageOptions,
             pb
         );
-    } catch (e) {}
-
-    try {
-        await connInfo.browser.close();
-    } catch (e) {}
+    } catch (e) { }
 
     return parsedNovel;
 }
@@ -282,18 +258,10 @@ async function handleWriteEpub(
 ) {
     let options = await makeWriteEpubSelectionPrompt();
 
-    pb.addTask("starting puppeteer...", DefaultProgressBarCustomization);
-
-    let connInfo = await makeNewConnection();
-
-    pb.done("starting puppeteer...", {
-        nameTransformFn: () => `started puppeteer`,
-    });
-
     try {
         await writeWebnovelToEpub(
             webnovel,
-            connInfo,
+            CONNECTON_INFO,
             { path: options.savePath },
             { timeout: options.timeout, concurrency: 1 },
             imageOptions,
@@ -302,10 +270,6 @@ async function handleWriteEpub(
     } catch (e) {
         printError("failed to write to epub");
     }
-
-    try {
-        await connInfo.browser.close();
-    } catch (e) {}
 }
 
 async function handleWriteJSON(webnovel: Webnovel, pb: MultiProgressBars) {

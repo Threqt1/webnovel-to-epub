@@ -52,10 +52,10 @@ export async function createNewPage(
     connectionInfo: ConnectionInfo,
     allowImg: boolean = true
 ): Promise<Page> {
-    connectionInfo.setTarget({ status: false });
+    //connectionInfo.setTarget({ status: false });
     let newPage = await connectionInfo.browser.newPage();
     await setupPage(newPage, allowImg);
-    connectionInfo.setTarget({ status: true });
+    //connectionInfo.setTarget({ status: true });
     return newPage;
 }
 
@@ -104,7 +104,7 @@ export async function downloadImagesLocally(
                     await image.toFile(path);
                     filePaths[response.url()] = path;
                     fileURLs = fileURLs.filter((r) => r != response.url());
-                } catch (e) {}
+                } catch (e) { }
             }
         });
     });
@@ -114,7 +114,7 @@ export async function downloadImagesLocally(
             page.goto(pageURL);
             success = await promise;
             tries++;
-        } catch (e) {}
+        } catch (e) { }
     }
 
     return filePaths;
@@ -182,11 +182,11 @@ export async function scrapeWebnovel(
         nameTransformFn: () => `found ${chapters.length} chapters`,
     });
 
-    let pages: Page[] = [];
-    for (let i = 0; i < scrapingOps.concurrency; i++) {
-        let newPage = await createNewPage(connectionInfo, false);
-        pages.push(newPage);
-    }
+    // let pages: Page[] = [];
+    // for (let i = 0; i < scrapingOps.concurrency; i++) {
+    //     let newPage = await createNewPage(connectionInfo, false);
+    //     pages.push(newPage);
+    // }
 
     pb.addTask(`chapters ${url}`, {
         ...DefaultProgressBarCustomization,
@@ -209,7 +209,7 @@ export async function scrapeWebnovel(
         })
         .process(async (chapter) => {
             if (chapter.hasBeenScraped) return chapter;
-            let page = pages.pop();
+            let page = await createNewPage(connectionInfo, false)  //pages.pop();
             let tries = 0;
             while (!chapter.hasBeenScraped && tries < MAX_TRIES) {
                 try {
@@ -219,7 +219,8 @@ export async function scrapeWebnovel(
                 }
             }
 
-            pages.push(page);
+            await page.close()
+            //pages.push(page);
 
             return true;
         });
@@ -228,9 +229,9 @@ export async function scrapeWebnovel(
         nameTransformFn: () => `finished scraping`,
     });
 
-    for (let page of pages) {
-        await page.close();
-    }
+    // for (let page of pages) {
+    //     await page.close();
+    // }
 
     return {
         title,

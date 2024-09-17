@@ -18,7 +18,6 @@ export type Webnovel = {
 export type ConnectionInfo = {
     page: Page;
     browser: Browser;
-    setTarget: (value: { status: boolean }) => void;
 };
 
 export type ScrapingOptions = {

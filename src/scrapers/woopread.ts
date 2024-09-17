@@ -110,7 +110,7 @@ export default class WoopreadScraper extends Scraper {
                     });
                 }
             );
-            chapters = chapters.reverse().slice(0, 3);
+            chapters = chapters.reverse();
         }
 
         return chapters;
