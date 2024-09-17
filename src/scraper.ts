@@ -182,12 +182,6 @@ export async function scrapeWebnovel(
         nameTransformFn: () => `found ${chapters.length} chapters`,
     });
 
-    // let pages: Page[] = [];
-    // for (let i = 0; i < scrapingOps.concurrency; i++) {
-    //     let newPage = await createNewPage(connectionInfo, false);
-    //     pages.push(newPage);
-    // }
-
     pb.addTask(`chapters ${url}`, {
         ...DefaultProgressBarCustomization,
         nameTransformFn: () => `scraping chapters...`,
@@ -209,7 +203,7 @@ export async function scrapeWebnovel(
         })
         .process(async (chapter) => {
             if (chapter.hasBeenScraped) return chapter;
-            let page = await createNewPage(connectionInfo, false)  //pages.pop();
+            let page = await createNewPage(connectionInfo, false)
             let tries = 0;
             while (!chapter.hasBeenScraped && tries < MAX_TRIES) {
                 try {
@@ -220,7 +214,6 @@ export async function scrapeWebnovel(
             }
 
             await page.close()
-            //pages.push(page);
 
             return true;
         });
@@ -228,10 +221,6 @@ export async function scrapeWebnovel(
     pb.done(`chapters ${url}`, {
         nameTransformFn: () => `finished scraping`,
     });
-
-    // for (let page of pages) {
-    //     await page.close();
-    // }
 
     return {
         title,
