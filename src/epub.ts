@@ -1,19 +1,19 @@
-import { createNewPage, downloadImagesLocally } from "./scraper.js";
-import { sanitizeFilename } from "./strings.js";
+import { createNewPage, downloadImagesLocally } from "./wte-pkg/scraper.js";
+import { sanitizeFilename } from "./wte-pkg/strings.js";
 import { join } from "path";
-import {
-    ConnectionInfo,
+import type {
     FileSystemOptions,
     ImageOptions,
     ScrapingOptions,
     Webnovel,
-} from "./structs.js";
+} from "./wte-pkg/structs.js";
 import { MultiProgressBars } from "multi-progress-bars";
 import { DefaultProgressBarCustomization } from "./logger.js";
+import type { ConnectResult } from "puppeteer-real-browser";
 
 export async function writeWebnovelToEpub(
     webnovel: Webnovel,
-    connectionInfo: ConnectionInfo,
+    connectionInfo: ConnectResult,
     fsOps: FileSystemOptions,
     scrapingOps: ScrapingOptions,
     imageOps: ImageOptions,

@@ -1,5 +1,5 @@
 import chalk from "chalk";
-import { AddOptions } from "multi-progress-bars";
+import { type AddOptions } from "multi-progress-bars";
 
 export const DefaultProgressBarCustomization: AddOptions = {
     type: "indefinite",

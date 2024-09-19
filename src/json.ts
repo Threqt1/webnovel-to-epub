@@ -1,15 +1,13 @@
 import { readFile, writeFile } from "fs/promises";
-import path, { join } from "path";
-import { sanitizeFilename } from "./strings.js";
-import { Validator } from "jsonschema";
+import { join } from "path";
+import { sanitizeFilename } from "./wte-pkg/strings.js";
 import {
-    FileSystemOptions,
+    type FileSystemOptions,
     SerializableWebnovelSchema,
-    Webnovel,
-} from "./structs.js";
-import { DefaultProgressBarCustomization, printError } from "./logger.js";
+    type Webnovel,
+} from "./wte-pkg/structs.js";
+import { DefaultProgressBarCustomization } from "./logger.js";
 import { MultiProgressBars } from "multi-progress-bars";
-const validator = new Validator();
 
 export async function writeWebnovelToJSON(
     webnovel: Webnovel,
@@ -48,11 +46,7 @@ export async function readWebnovelFromJSON(
 
     let webnovel: Webnovel = JSON.parse(webnovelString);
 
-    let validity = validator.validate(webnovel, SerializableWebnovelSchema);
-    if (!validity) {
-        printError(`invalid JSON format at path ${path}`);
-        throw new Error();
-    }
+    await SerializableWebnovelSchema.validate(webnovel);
 
     pb.done(`read`, {
         nameTransformFn: () => `wrote and parsed JSON`,
@@ -75,7 +69,7 @@ export function combineWebnovels(
     if (indexToKeepData >= webnovels.length || indexToKeepData < 0)
         indexToKeepData = 0;
 
-    let dataKeptWebnovel = webnovels[indexToKeepData];
+    let dataKeptWebnovel = webnovels[indexToKeepData]!;
     newWebnovel.title = dataKeptWebnovel.title;
     newWebnovel.author = dataKeptWebnovel.author;
     newWebnovel.coverImageURL = dataKeptWebnovel.coverImageURL;

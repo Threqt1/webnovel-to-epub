@@ -4,7 +4,7 @@ import {
     printError,
     printLog,
 } from "./logger.js";
-import { TEMP_FILE_PATH } from "./strings.js";
+import { TEMP_FILE_PATH } from "./wte-pkg/strings.js";
 import {
     ExportOption,
     makeExportOptionsSelectionPrompt,
@@ -17,12 +17,16 @@ import {
     makeScrapingOptionsSelectionPrompt,
     makeWriteEpubSelectionPrompt,
     makeWriteJSONSelectionPrompt,
-    ParserOptions,
+    type ParserOptions,
     ScraperOption,
 } from "./cli.js";
 import { MultiProgressBars } from "multi-progress-bars";
-import { ConnectionInfo, ImageOptions, ParsingType, Webnovel } from "./structs.js";
-import { makeNewConnection, scrapeWebnovel } from "./scraper.js";
+import {
+    type ImageOptions,
+    ParsingType,
+    type Webnovel,
+} from "./wte-pkg/structs.js";
+import { makeNewConnection, scrapeWebnovel } from "./wte-pkg/scraper.js";
 import {
     combineWebnovels,
     readWebnovelFromJSON,
@@ -30,6 +34,7 @@ import {
 } from "./json.js";
 import { parseWebnovel } from "./parser.js";
 import { writeWebnovelToEpub } from "./epub.js";
+import type { ConnectResult } from "puppeteer-real-browser";
 
 /**
  * TODO:
@@ -42,255 +47,259 @@ import { writeWebnovelToEpub } from "./epub.js";
  * test manga functionality (test sharp)
  */
 
-function createProgressBars() {
-    return new MultiProgressBars({
-        initMessage: "Webnovel To Epub CLI",
-        anchor: "top",
-        persist: true,
-        border: true,
-    });
-}
+// function createProgressBars() {
+//     return new MultiProgressBars({
+//         initMessage: "Webnovel To Epub CLI",
+//         anchor: "top",
+//         persist: true,
+//         border: true,
+//     });
+// }
 
-let CONNECTON_INFO: ConnectionInfo | undefined;
+// let CONNECTION_INFO: ConnectResult | undefined;
 
-async function main() {
-    try {
-        printLog("making temp dir");
-        await mkdir(TEMP_FILE_PATH);
-    } catch (e) {
-        console.log(e);
-    }
+// async function main() {
+//     try {
+//         printLog("making temp dir");
+//         await mkdir(TEMP_FILE_PATH);
+//     } catch (e) {
+//         console.log(e);
+//     }
 
-    let scrapingOption = await makeScrapingOptionsSelectionPrompt();
-    let parsingOptions = await makeParsingOptionSelectionPrompt();
-    let imageOptions = await makeImageOptionsPrompt();
+//     let scrapingOption = await makeScrapingOptionsSelectionPrompt();
+//     let parsingOptions = await makeParsingOptionSelectionPrompt();
+//     let imageOptions = await makeImageOptionsPrompt();
 
-    let pb = createProgressBars();
+//     let pb = createProgressBars();
 
-    pb.addTask("starting puppeteer...", DefaultProgressBarCustomization);
+//     pb.addTask("starting puppeteer...", DefaultProgressBarCustomization);
 
-    CONNECTON_INFO = await makeNewConnection();
+//     CONNECTION_INFO = await makeNewConnection();
 
-    pb.done("starting puppeteer...", {
-        nameTransformFn: () => `started puppeteer`,
-    });
+//     pb.done("starting puppeteer...", {
+//         nameTransformFn: () => `started puppeteer`,
+//     });
 
-    let webnovel: Webnovel | null;
-    switch (scrapingOption) {
-        case ScraperOption.ScrapeSingle:
-            webnovel = await handleScrapeSingle(parsingOptions.parsingType, pb);
-            break;
-        case ScraperOption.ScrapeMultiple:
-            webnovel = await handleScrapeMultiple(
-                parsingOptions.parsingType,
-                pb
-            );
-            break;
-        case ScraperOption.JSONSingle:
-            webnovel = await handleJSONSingle(pb);
-            break;
-        case ScraperOption.JSONMultiple:
-            webnovel = await handleJSONMultiple(pb);
-            break;
-    }
+//     let webnovel: Webnovel | null;
+//     switch (scrapingOption) {
+//         case ScraperOption.ScrapeSingle:
+//             webnovel = await handleScrapeSingle(parsingOptions.parsingType, pb);
+//             break;
+//         case ScraperOption.ScrapeMultiple:
+//             webnovel = await handleScrapeMultiple(
+//                 parsingOptions.parsingType,
+//                 pb
+//             );
+//             break;
+//         case ScraperOption.JSONSingle:
+//             webnovel = await handleJSONSingle(pb);
+//             break;
+//         case ScraperOption.JSONMultiple:
+//             webnovel = await handleJSONMultiple(pb);
+//             break;
+//     }
 
-    if (!webnovel) {
-        printError("failed to obtain webnovel");
-        return;
-    }
+//     if (!webnovel) {
+//         printError("failed to obtain webnovel");
+//         return;
+//     }
 
-    pb.close();
+//     pb.close();
 
-    pb = createProgressBars();
+//     pb = createProgressBars();
 
-    let parsedNovel = await handleParseWebnovel(
-        webnovel,
-        parsingOptions,
-        imageOptions,
-        pb
-    );
+//     let parsedNovel = await handleParseWebnovel(
+//         webnovel,
+//         parsingOptions,
+//         imageOptions,
+//         pb
+//     );
 
-    if (!parsedNovel) {
-        return printError("failed to parse webnovel");
-    }
+//     if (!parsedNovel) {
+//         return printError("failed to parse webnovel");
+//     }
 
-    pb.close();
+//     pb.close();
 
-    pb = createProgressBars();
+//     pb = createProgressBars();
 
-    let exportOptions = await makeExportOptionsSelectionPrompt();
-    switch (exportOptions) {
-        case ExportOption.WriteEpub:
-            await handleWriteEpub(webnovel, imageOptions, pb);
-            break;
-        case ExportOption.WriteJSON:
-            await handleWriteJSON(webnovel, pb);
-            break;
-    }
+//     let exportOptions = await makeExportOptionsSelectionPrompt();
+//     switch (exportOptions) {
+//         case ExportOption.WriteEpub:
+//             await handleWriteEpub(webnovel, imageOptions, pb);
+//             break;
+//         case ExportOption.WriteJSON:
+//             await handleWriteJSON(webnovel, pb);
+//             break;
+//     }
 
-    try {
-        printLog("cleaning up temp dir");
-        await CONNECTON_INFO.browser.close()
-        await rm(TEMP_FILE_PATH, {
-            recursive: true,
-            force: true,
-        });
-    } catch (e) { }
-}
+//     try {
+//         printLog("cleaning up temp dir");
+//         await CONNECTION_INFO.browser.close();
+//         await rm(TEMP_FILE_PATH, {
+//             recursive: true,
+//             force: true,
+//         });
+//     } catch (e) {}
+// }
 
-async function handleScrapeSingle(
-    parsingType: ParsingType,
-    pb: MultiProgressBars
-) {
-    let options = await makeScrapeSingleSelectionPrompt();
+// async function handleScrapeSingle(
+//     parsingType: ParsingType,
+//     pb: MultiProgressBars
+// ) {
+//     let options = await makeScrapeSingleSelectionPrompt();
 
-    let webnovel: Webnovel | undefined;
-    try {
-        webnovel = await scrapeWebnovel(
-            options.url,
-            CONNECTON_INFO,
-            parsingType,
-            {
-                concurrency: options.concurrencyPages,
-                timeout: options.timeout,
-            },
-            pb
-        );
-    } catch (e) {
-        console.log(e);
-        printError(`failed to parse webnovel at url ${options.url}`);
-    }
+//     let webnovel: Webnovel | undefined;
+//     try {
+//         webnovel = await scrapeWebnovel(
+//             options.url,
+//             CONNECTION_INFO,
+//             parsingType,
+//             {
+//                 concurrency: options.concurrencyPages,
+//                 timeout: options.timeout,
+//             },
+//             pb
+//         );
+//     } catch (e) {
+//         console.log(e);
+//         printError(`failed to parse webnovel at url ${options.url}`);
+//     }
 
-    return webnovel;
-}
+//     return webnovel;
+// }
 
-async function handleScrapeMultiple(
-    parsingType: ParsingType,
-    pb: MultiProgressBars
-) {
-    let options = await makeScrapeMultipleSelectionPrompt();
+// async function handleScrapeMultiple(
+//     parsingType: ParsingType,
+//     pb: MultiProgressBars
+// ) {
+//     let options = await makeScrapeMultipleSelectionPrompt();
 
-    let webnovels: Webnovel[] = [];
-    for (let url of options.webnovelURLs) {
-        let webnovel: Webnovel | undefined;
-        try {
-            webnovel = await scrapeWebnovel(
-                url,
-                CONNECTON_INFO,
-                parsingType,
-                {
-                    concurrency: options.concurrencyPages,
-                    timeout: options.timeout,
-                },
-                pb
-            );
-        } catch (e) {
-            printError(`failed to parse webnovel at url ${url}`);
-        }
+//     let webnovels: Webnovel[] = [];
+//     for (let url of options.webnovelURLs) {
+//         let webnovel: Webnovel | undefined;
+//         try {
+//             webnovel = await scrapeWebnovel(
+//                 url,
+//                 CONNECTION_INFO,
+//                 parsingType,
+//                 {
+//                     concurrency: options.concurrencyPages,
+//                     timeout: options.timeout,
+//                 },
+//                 pb
+//             );
+//         } catch (e) {
+//             printError(`failed to parse webnovel at url ${url}`);
+//         }
 
-        if (webnovel) webnovels.push(webnovel);
-    }
+//         if (webnovel) webnovels.push(webnovel);
+//     }
 
-    if (webnovels.length == 0) return null;
+//     if (webnovels.length == 0) return null;
 
-    let combined = await combineWebnovels(webnovels, options.indexToKeepData);
+//     let combined = await combineWebnovels(webnovels, options.indexToKeepData);
 
-    return combined;
-}
+//     return combined;
+// }
 
-async function handleJSONSingle(pb: MultiProgressBars) {
-    let options = await makeJSONSingleSelectionPrompt();
+// async function handleJSONSingle(pb: MultiProgressBars) {
+//     let options = await makeJSONSingleSelectionPrompt();
 
-    let webnovel: Webnovel | undefined;
-    try {
-        webnovel = await readWebnovelFromJSON({ path: options.readPath }, pb);
-    } catch (e) {
-        printError(`failed to parse webnovel at path ${options.readPath}`);
-    }
+//     let webnovel: Webnovel | undefined;
+//     try {
+//         webnovel = await readWebnovelFromJSON({ path: options.readPath }, pb);
+//     } catch (e) {
+//         printError(`failed to parse webnovel at path ${options.readPath}`);
+//     }
 
-    return webnovel;
-}
+//     return webnovel;
+// }
 
-async function handleJSONMultiple(pb: MultiProgressBars) {
-    let options = await makeJSONMultipleSelectionPrompt();
+// async function handleJSONMultiple(pb: MultiProgressBars) {
+//     let options = await makeJSONMultipleSelectionPrompt();
 
-    let webnovels: Webnovel[] = [];
-    for (let path of options.readPaths) {
-        let webnovel: Webnovel | undefined;
-        try {
-            webnovel = await readWebnovelFromJSON(
-                {
-                    path: path,
-                },
-                pb
-            );
-        } catch (e) {
-            printError(`failed to parse webnovel at path ${path}`);
-        }
+//     let webnovels: Webnovel[] = [];
+//     for (let path of options.readPaths) {
+//         let webnovel: Webnovel | undefined;
+//         try {
+//             webnovel = await readWebnovelFromJSON(
+//                 {
+//                     path: path,
+//                 },
+//                 pb
+//             );
+//         } catch (e) {
+//             printError(`failed to parse webnovel at path ${path}`);
+//         }
 
-        webnovels.push(webnovel);
-    }
+//         webnovels.push(webnovel);
+//     }
 
-    if (webnovels.length == 0) return null;
+//     if (webnovels.length == 0) return null;
 
-    let combined = await combineWebnovels(webnovels, options.indexToKeepData);
+//     let combined = await combineWebnovels(webnovels, options.indexToKeepData);
 
-    return combined;
-}
+//     return combined;
+// }
 
-async function handleParseWebnovel(
-    webnovel: Webnovel,
-    parserOptions: ParserOptions,
-    imageOptions: ImageOptions,
-    pb: MultiProgressBars
-) {
-    let parsedNovel: Webnovel | undefined;
-    try {
-        parsedNovel = await parseWebnovel(
-            webnovel,
-            CONNECTON_INFO,
-            parserOptions.parsingType,
-            {
-                concurrency: parserOptions.concurrencyPages,
-                timeout: parserOptions.timeout,
-            },
-            imageOptions,
-            pb
-        );
-    } catch (e) { }
+// async function handleParseWebnovel(
+//     webnovel: Webnovel,
+//     parserOptions: ParserOptions,
+//     imageOptions: ImageOptions,
+//     pb: MultiProgressBars
+// ) {
+//     let parsedNovel: Webnovel | undefined;
+//     try {
+//         parsedNovel = await parseWebnovel(
+//             webnovel,
+//             CONNECTION_INFO,
+//             parserOptions.parsingType,
+//             {
+//                 concurrency: parserOptions.concurrencyPages,
+//                 timeout: parserOptions.timeout,
+//             },
+//             imageOptions,
+//             pb
+//         );
+//     } catch (e) {}
 
-    return parsedNovel;
-}
+//     return parsedNovel;
+// }
 
-async function handleWriteEpub(
-    webnovel: Webnovel,
-    imageOptions: ImageOptions,
-    pb: MultiProgressBars
-) {
-    let options = await makeWriteEpubSelectionPrompt();
+// async function handleWriteEpub(
+//     webnovel: Webnovel,
+//     imageOptions: ImageOptions,
+//     pb: MultiProgressBars
+// ) {
+//     let options = await makeWriteEpubSelectionPrompt();
 
-    try {
-        await writeWebnovelToEpub(
-            webnovel,
-            CONNECTON_INFO,
-            { path: options.savePath },
-            { timeout: options.timeout, concurrency: 1 },
-            imageOptions,
-            pb
-        );
-    } catch (e) {
-        printError("failed to write to epub");
-    }
-}
+//     try {
+//         await writeWebnovelToEpub(
+//             webnovel,
+//             CONNECTION_INFO,
+//             { path: options.savePath },
+//             { timeout: options.timeout, concurrency: 1 },
+//             imageOptions,
+//             pb
+//         );
+//     } catch (e) {
+//         printError("failed to write to epub");
+//     }
+// }
 
-async function handleWriteJSON(webnovel: Webnovel, pb: MultiProgressBars) {
-    let options = await makeWriteJSONSelectionPrompt();
+// async function handleWriteJSON(webnovel: Webnovel, pb: MultiProgressBars) {
+//     let options = await makeWriteJSONSelectionPrompt();
 
-    try {
-        await writeWebnovelToJSON(webnovel, { path: options.savePath }, pb);
-    } catch (e) {
-        printError("failed to write to json");
-    }
-}
+//     try {
+//         await writeWebnovelToJSON(webnovel, { path: options.savePath }, pb);
+//     } catch (e) {
+//         printError("failed to write to json");
+//     }
+// }
 
-main();
+// main();
+
+async function test() {}
+
+test();

@@ -1,5 +1,5 @@
-import { Sharp } from "sharp";
-import { ImageOptions } from "./structs.js";
+import type { Sharp } from "sharp";
+import type { ImageOptions } from "./structs.js";
 
 export async function processImage(image: Sharp, options: ImageOptions) {
     let temp = image.webp({

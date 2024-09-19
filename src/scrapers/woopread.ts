@@ -1,17 +1,16 @@
-import { Page } from "puppeteer-core";
 import { Scraper } from "./baseScraper.js";
 import {
-    Chapter,
-    ConnectionInfo,
-    ParsingType,
-    ScrapingOptions,
-} from "../structs.js";
+    type Chapter,
+    type ChapterSkeleton,
+    type ScrapingOptions,
+} from "../wte-pkg/structs.js";
+import type { ConnectResult, PageWithCursor } from "puppeteer-real-browser";
 
 export default class WoopreadScraper extends Scraper {
-    page: Page;
-    url: string;
-    initialSetupComplete: boolean;
-    scrapingOps: ScrapingOptions;
+    page!: PageWithCursor;
+    url!: string;
+    initialSetupComplete!: boolean;
+    scrapingOps!: ScrapingOptions;
 
     constructor() {
         super();
@@ -19,7 +18,7 @@ export default class WoopreadScraper extends Scraper {
 
     async initialize(
         url: string,
-        connectionInfo: ConnectionInfo,
+        connectionInfo: ConnectResult,
         scrapingOps: ScrapingOptions
     ): Promise<void> {
         this.page = connectionInfo.page;
@@ -63,10 +62,10 @@ export default class WoopreadScraper extends Scraper {
         return image;
     }
 
-    async getAllChapters(): Promise<Chapter[]> {
+    async getAllChapters(): Promise<ChapterSkeleton[]> {
         await this.page.waitForSelector("div#manga-chapters-holder ul.main");
 
-        let chapters: Chapter[] = [];
+        let chapters: ChapterSkeleton[] = [];
         //check if there are volumes
         let isInVolumes = await this.page
             .$eval("ul.sub-chap-list", () => true)
@@ -75,17 +74,16 @@ export default class WoopreadScraper extends Scraper {
             chapters = await this.page.$$eval(
                 "div#manga-chapters-holder ul.sub-chap-list",
                 (volumes) => {
-                    let localChapters: Chapter[] = [];
+                    let localChapters: ChapterSkeleton[] = [];
                     for (let volume of volumes) {
-                        let volumeChapters: Chapter[] = [];
+                        let volumeChapters: ChapterSkeleton[] = [];
                         let links = volume.querySelectorAll("li a");
-                        links.forEach((link: HTMLAnchorElement) => {
+                        links.forEach((ele: Element) => {
+                            let link = ele as HTMLAnchorElement;
                             volumeChapters.push({
                                 title: link.innerText.trim(),
                                 url: link.href,
-                                hasBeenParsed: false,
-                                hasBeenScraped: false,
-                                content: "",
+                                index: -1,
                             });
                         });
                         localChapters = localChapters.concat(
@@ -103,9 +101,7 @@ export default class WoopreadScraper extends Scraper {
                         return {
                             title: element.innerText.trim(),
                             url: element.href,
-                            hasBeenParsed: false,
-                            hasBeenScraped: false,
-                            content: "",
+                            index: -1,
                         };
                     });
                 }
@@ -113,19 +109,21 @@ export default class WoopreadScraper extends Scraper {
             chapters = chapters.reverse();
         }
 
+        for (let i = 0; i < chapters.length; i++) {
+            chapters[i]!.index = i;
+        }
+
         return chapters;
     }
 
     async scrapeChapter(
-        page: Page,
-        chapter: Chapter,
-        parsingType: ParsingType
-    ): Promise<void> {
+        page: PageWithCursor,
+        chapter: ChapterSkeleton
+    ): Promise<string> {
         return this.scrapePageHTML(
             page,
             chapter,
             "div.reading-content",
-            parsingType,
             this.scrapingOps
         );
     }

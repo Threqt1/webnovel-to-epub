@@ -1,24 +1,23 @@
-import { Page } from "puppeteer-core";
 import { Scraper } from "./baseScraper.js";
 import {
-    Chapter,
-    ConnectionInfo,
-    ParsingType,
-    ScrapingOptions,
-} from "../structs.js";
+    type Chapter,
+    type ChapterSkeleton,
+    type ScrapingOptions,
+} from "../wte-pkg/structs.js";
+import type { ConnectResult, PageWithCursor } from "puppeteer-real-browser";
 
 export default class NoveloonScraper extends Scraper {
-    page: Page;
-    url: string;
-    initialSetupComplete: boolean;
-    scrapingOps: ScrapingOptions;
+    page!: PageWithCursor;
+    url!: string;
+    initialSetupComplete!: boolean;
+    scrapingOps!: ScrapingOptions;
 
     async initialize(
         url: string,
-        connectionInfo: ConnectionInfo,
+        connection: ConnectResult,
         scrapingOps: ScrapingOptions
     ): Promise<void> {
-        this.page = connectionInfo.page;
+        this.page = connection.page;
 
         await this.page.goto(url, {
             waitUntil: "domcontentloaded",
@@ -60,24 +59,22 @@ export default class NoveloonScraper extends Scraper {
         return image;
     }
 
-    async getAllChapters(): Promise<Chapter[]> {
-        let chapters: Chapter[] = [];
+    async getAllChapters(): Promise<ChapterSkeleton[]> {
+        let chapters: ChapterSkeleton[] = [];
 
         while (true) {
             await this.page.waitForSelector(
                 "main div div:nth-of-type(2) div ul li a"
             );
 
-            let pageChapters: Chapter[] = await this.page.$$eval(
+            let pageChapters: ChapterSkeleton[] = await this.page.$$eval(
                 "main div div:nth-of-type(2) div ul li a",
                 (elements) => {
-                    return elements.map((element) => {
+                    return elements.map((element, i: number) => {
                         return {
-                            title: element.querySelector("h3").innerText,
+                            title: element.querySelector("h3")?.innerText || "",
                             url: element.href,
-                            hasBeenScraped: false,
-                            hasBeenParsed: false,
-                            content: "",
+                            index: -1,
                         };
                     });
                 }
@@ -98,19 +95,21 @@ export default class NoveloonScraper extends Scraper {
             });
         }
 
+        for (let i = 0; i < chapters.length; i++) {
+            chapters[i]!.index = i;
+        }
+
         return chapters;
     }
 
     async scrapeChapter(
-        page: Page,
-        chapter: Chapter,
-        parsingType: ParsingType
-    ): Promise<void> {
+        page: PageWithCursor,
+        chapter: ChapterSkeleton
+    ): Promise<string> {
         return this.scrapePageHTML(
             page,
             chapter,
             "main div article",
-            parsingType,
             this.scrapingOps
         );
     }

@@ -2,7 +2,7 @@ import inquirer from "inquirer";
 import FileTreeSelectionPrompt from "inquirer-file-tree-selection-prompt";
 import download from "downloads-folder";
 import urlRegex from "url-regex";
-import { ImageOptions, ParsingType } from "./structs.js";
+import { type ImageOptions, ParsingType } from "./wte-pkg/structs.js";
 inquirer.registerPrompt("file-tree-selection", FileTreeSelectionPrompt);
 
 export enum ScraperOption {

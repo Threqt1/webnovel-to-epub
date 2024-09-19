@@ -1,36 +1,34 @@
-import { Page } from "puppeteer-core";
-import { htmlifyContent } from "../strings.js";
 import {
-    Chapter,
-    ConnectionInfo,
+    type Chapter,
+    type ChapterSkeleton,
     ParsingType,
-    ScrapingOptions,
-} from "../structs.js";
+    type ScrapingOptions,
+} from "../wte-pkg/structs.js";
+import type { ConnectResult, PageWithCursor } from "puppeteer-real-browser";
 
 export abstract class Scraper {
     abstract initialize(
         baseUrl: string,
-        connectionInfo: ConnectionInfo,
+        connection: ConnectResult,
         scrapingOps: ScrapingOptions
     ): Promise<void>;
     abstract getTitle(): Promise<string>;
     abstract getAuthor(): Promise<string>;
     abstract getCoverImage(): Promise<string>;
-    abstract getAllChapters(): Promise<Chapter[]>;
+    abstract getAllChapters(): Promise<ChapterSkeleton[]>;
     abstract scrapeChapter(
-        page: Page,
-        chapter: Chapter,
+        page: PageWithCursor,
+        chapter: ChapterSkeleton,
         parsingType: ParsingType
-    ): Promise<void>;
+    ): Promise<string>;
     abstract matchUrl(url: string): boolean;
 
     protected async scrapePageHTML(
-        page: Page,
-        chapter: Chapter,
+        page: PageWithCursor,
+        chapter: ChapterSkeleton,
         contentSelector: string,
-        parsingType: ParsingType,
         scrapingOps: ScrapingOptions
-    ) {
+    ): Promise<string> {
         await page.goto(chapter.url, {
             waitUntil: "domcontentloaded",
             timeout: scrapingOps.timeout,
@@ -38,20 +36,9 @@ export abstract class Scraper {
 
         await page.waitForSelector(contentSelector);
 
-        if (parsingType === ParsingType.TextOnly) {
-            let text = await page.$eval(contentSelector, (ele: any) =>
-                ele.innerText.trim()
-            );
-            chapter.content = htmlifyContent(text) ?? "";
-            chapter.hasBeenScraped = true;
-            chapter.hasBeenParsed = true;
-        } else {
-            let html = await page.$eval(contentSelector, (ele) =>
-                ele.innerHTML.trim()
-            );
-            chapter.content = html;
-            chapter.hasBeenScraped = true;
-        }
+        let html = await page.$eval(contentSelector, (ele) => ele.innerHTML);
+
+        return html;
     }
 
     protected baseMatchURL(url: string, urls: string[]): boolean {
