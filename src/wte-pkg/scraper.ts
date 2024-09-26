@@ -1,5 +1,6 @@
 import {
     type Chapter,
+    type ChapterEpubItem,
     type ChapterSkeleton,
     type EpubItem,
     type ImageOptions,
@@ -9,7 +10,7 @@ import {
 } from "./structs.js";
 import sharp from "sharp";
 import { processImage } from "./image.js";
-import { ERRORS } from "./strings.js";
+import { EPUB_ITEM_TYPES, ERRORS } from "./strings.js";
 import { v4 as uuidv4 } from "uuid";
 import { PromisePool } from "@supercharge/promise-pool";
 import { findCorrectScraper } from "../scrapers/scaperBucket.js";
@@ -24,49 +25,50 @@ import { createChapterXHTML } from "./xhtml.js";
 
 const MAX_TRIES = 3;
 
-export async function getNovelMetadata(
-    url: string,
-    connection: ConnectResult,
-    scrapingOps: ScrapingOptions
-): Promise<Metadata> {
-    let scraper = await getInitializedScraper(url, connection, scrapingOps);
+export async function getScraperForURL(url: string, connection: ConnectResult, scrapingOps: ScrapingOptions): Promise<Scraper> {
+    let scraper = findCorrectScraper(url);
     if (!scraper) throw new Error(ERRORS.ScraperNotFound(url));
 
+    await scraper.initialize(url, connection, scrapingOps);
+
+    return scraper
+}
+
+export async function getNovelMetadata(
+    scraper: Scraper
+): Promise<Metadata> {
     let title = await scraper.getTitle();
     let author = await scraper.getAuthor();
-    let coverImageURL = await scraper.getCoverImage();
 
     return {
         title,
         author,
-        coverImageURL,
+        id: uuidv4()
     };
 }
 
-export async function getChapterList(
-    url: string,
-    connection: ConnectResult,
-    scrapingOps: ScrapingOptions
-): Promise<ChapterSkeleton[]> {
-    let scraper = await getInitializedScraper(url, connection, scrapingOps);
-    if (!scraper) throw new Error(ERRORS.ScraperNotFound(url));
+export async function getNovelCoverImage(scraper: Scraper, connection: ConnectResult, stagingPath: string, scrapingOps: ScrapingOptions, imageOps: ImageOptions,): Promise<EpubItem> {
+    let coverImageURL = await scraper.getCoverImage()
+    return (await downloadImagesLocally(connection.page, coverImageURL, stagingPath, [coverImageURL], scrapingOps, imageOps))[coverImageURL]!
+}
 
+export async function getChapterList(
+    scraper: Scraper,
+): Promise<ChapterSkeleton[]> {
     return scraper.getAllChapters();
 }
 
 export async function processAndWriteChapters(
-    url: string,
+    connection: ConnectResult,
+    scraper: Scraper,
     stagingPath: string,
     chapterSkeletons: ChapterSkeleton[],
-    connection: ConnectResult,
     scrapingOps: ScrapingOptions,
     imageOps: ImageOptions,
     parsingType: ParsingType
-): Promise<EpubItem[]> {
-    let scraper = await getInitializedScraper(url, connection, scrapingOps);
-    if (!scraper) throw new Error(ERRORS.ScraperNotFound(url));
-
-    let chapters: EpubItem[] = [];
+): Promise<[ChapterEpubItem[], EpubItem[]]> {
+    let chapters: ChapterEpubItem[] = [];
+    let items: EpubItem[] = []
 
     await PromisePool.withConcurrency(scrapingOps.concurrency)
         .for(chapterSkeletons)
@@ -75,9 +77,11 @@ export async function processAndWriteChapters(
                 connection,
                 parsingType == ParsingType.WithImage
             );
-            let tries = 0;
             let chapter: Chapter = { ...skeleton, content: "" };
-            while (tries < MAX_TRIES) {
+
+            let tries = 0;
+            let success = false
+            while (!success && tries < MAX_TRIES) {
                 try {
                     let content = await scraper.scrapeChapter(
                         page,
@@ -85,19 +89,21 @@ export async function processAndWriteChapters(
                         parsingType
                     );
                     chapter.content = content;
+                    success = true
                 } catch (e) {
                     tries++;
                 }
             }
 
-            if (tries >= MAX_TRIES) {
+            if (!success) {
                 throw new Error(ERRORS.FailedToScrape(skeleton.url));
             }
 
             tries = 0;
-            while (tries < MAX_TRIES) {
+            success = false
+            while (!success && tries < MAX_TRIES) {
                 try {
-                    await parseChapter(
+                    let parsedItems = await parseChapter(
                         page,
                         chapter,
                         stagingPath,
@@ -105,27 +111,34 @@ export async function processAndWriteChapters(
                         scrapingOps,
                         imageOps
                     );
+                    items.push(...parsedItems)
+                    success = true
                 } catch (e) {
                     tries++;
                 }
             }
 
-            if (tries >= MAX_TRIES) {
+            if (!success) {
                 throw new Error(ERRORS.FailedToParse(skeleton.url));
             }
 
-            let id = uuidv4();
-            let path = join(stagingPath, "OEBPS", TEXT_DIR, `${id}.xhtml`);
-            await writeFile(path, createChapterXHTML(chapter));
+            let id = uuidv4()
+            await writeFile(join(stagingPath, "OEBPS", TEXT_DIR, `${id}.xhtml`), createChapterXHTML(chapter));
+
+            await page.close()
 
             chapters.push({
                 id,
+                title: skeleton.title,
+                index: skeleton.index,
                 path: `${TEXT_DIR}/${id}.xhtml`,
                 type: "application/xhtml+xml",
             });
         });
 
-    return chapters;
+    chapters = chapters.sort((a, b) => a.index - b.index)
+
+    return [chapters, items];
 }
 
 export async function downloadImagesLocally(
@@ -134,7 +147,7 @@ export async function downloadImagesLocally(
     stagingPath: string,
     fileURLs: string[],
     scrapingOps: ScrapingOptions,
-    imageOptions: ImageOptions
+    imageOptions: ImageOptions,
 ): Promise<{ [key: string]: EpubItem }> {
     let tries = 0;
     let success = false;
@@ -153,26 +166,23 @@ export async function downloadImagesLocally(
             }
             if (fileURLs.includes(response.url())) {
                 let id = uuidv4();
-                let extension =
-                    response.url().split("/").at(-1)!.split(".")[1]?.trim() ??
-                    "png";
                 let path = join(
                     stagingPath,
                     "OEBPS",
                     IMAGE_DIR,
-                    `${id}.${extension}`
+                    `${id}.${imageOptions.webp ? "webp" : "png"}`
                 );
                 try {
                     let buffer = await response.buffer();
-                    let image = await processImage(sharp(buffer), imageOptions);
+                    let image = await processImage(sharp(buffer), imageOptions, imageOptions.webp);
                     await image.toFile(path);
                     filePaths[response.url()] = {
-                        path: `${IMAGE_DIR}/${`${id}.${extension}`}`,
+                        path: `${IMAGE_DIR}/${`${id}.${imageOptions.webp ? "webp" : "png"}`}`,
                         id,
-                        type: `image/${extension}`,
+                        type: EPUB_ITEM_TYPES.img(imageOptions.webp ? "webp" : "png"),
                     };
                     fileURLs = fileURLs.filter((r) => r != response.url());
-                } catch (e) {}
+                } catch (e) { }
             }
         });
     });
@@ -182,23 +192,8 @@ export async function downloadImagesLocally(
             page.goto(pageURL);
             success = await promise;
             tries++;
-        } catch (e) {}
+        } catch (e) { }
     }
 
     return filePaths;
-}
-
-export async function getInitializedScraper(
-    url: string,
-    connection: ConnectResult,
-    scrapingOps: ScrapingOptions
-): Promise<Scraper | undefined> {
-    let parser = findCorrectScraper(url);
-    if (!parser) {
-        return undefined;
-    }
-
-    await parser.initialize(url, connection, scrapingOps);
-
-    return parser;
 }

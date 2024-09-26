@@ -1,40 +1,46 @@
-import { mkdir, rm } from "fs/promises";
-import {
-    DefaultProgressBarCustomization,
-    printError,
-    printLog,
-} from "./logger.js";
+// import { mkdir, rm } from "fs/promises";
+// import {
+//     DefaultProgressBarCustomization,
+//     printError,
+//     printLog,
+// } from "./logger.js";
+// import { TEMP_FILE_PATH } from "./wte-pkg/strings.js";
+// import {
+//     ExportOption,
+//     makeExportOptionsSelectionPrompt,
+//     makeImageOptionsPrompt,
+//     makeJSONMultipleSelectionPrompt,
+//     makeJSONSingleSelectionPrompt,
+//     makeParsingOptionSelectionPrompt,
+//     makeScrapeMultipleSelectionPrompt,
+//     makeScrapeSingleSelectionPrompt,
+//     makeScrapingOptionsSelectionPrompt,
+//     makeWriteEpubSelectionPrompt,
+//     makeWriteJSONSelectionPrompt,
+//     type ParserOptions,
+//     ScraperOption,
+// } from "./cli.js";
+// import { MultiProgressBars } from "multi-progress-bars";
+// import {
+//     type ImageOptions,
+//     ParsingType,
+//     type Webnovel,
+// } from "./wte-pkg/structs.js";
+// import { makeNewConnection, scrapeWebnovel } from "./wte-pkg/scraper.js";
+// import {
+//     combineWebnovels,
+//     readWebnovelFromJSON,
+//     writeWebnovelToJSON,
+// } from "./json.js";
+// import { parseWebnovel } from "./parser.js";
+// import { writeWebnovelToEpub } from "./epub.js";
+// import type { ConnectResult } from "puppeteer-real-browser";
+
+import { makeNewConnection } from "./wte-pkg/connection.js";
+import { createEpub, createStagingDirectory } from "./wte-pkg/epub.js";
+import { getChapterList, getNovelCoverImage, getNovelMetadata, getScraperForURL, processAndWriteChapters } from "./wte-pkg/scraper.js";
 import { TEMP_FILE_PATH } from "./wte-pkg/strings.js";
-import {
-    ExportOption,
-    makeExportOptionsSelectionPrompt,
-    makeImageOptionsPrompt,
-    makeJSONMultipleSelectionPrompt,
-    makeJSONSingleSelectionPrompt,
-    makeParsingOptionSelectionPrompt,
-    makeScrapeMultipleSelectionPrompt,
-    makeScrapeSingleSelectionPrompt,
-    makeScrapingOptionsSelectionPrompt,
-    makeWriteEpubSelectionPrompt,
-    makeWriteJSONSelectionPrompt,
-    type ParserOptions,
-    ScraperOption,
-} from "./cli.js";
-import { MultiProgressBars } from "multi-progress-bars";
-import {
-    type ImageOptions,
-    ParsingType,
-    type Webnovel,
-} from "./wte-pkg/structs.js";
-import { makeNewConnection, scrapeWebnovel } from "./wte-pkg/scraper.js";
-import {
-    combineWebnovels,
-    readWebnovelFromJSON,
-    writeWebnovelToJSON,
-} from "./json.js";
-import { parseWebnovel } from "./parser.js";
-import { writeWebnovelToEpub } from "./epub.js";
-import type { ConnectResult } from "puppeteer-real-browser";
+import { ParsingType } from "./wte-pkg/structs.js";
 
 /**
  * TODO:
@@ -300,6 +306,26 @@ import type { ConnectResult } from "puppeteer-real-browser";
 
 // main();
 
-async function test() {}
+async function test() {
+    let stagingPath = TEMP_FILE_PATH
+    await createStagingDirectory(stagingPath)
+
+    let scrapingOps = { concurrency: 3, timeout: 10000 }
+    let imageOps = { quality: 80, shouldResize: false, maxHeight: 0, maxWidth: 0, webp: false }
+    let conn = await makeNewConnection();
+    let scraper = await getScraperForURL("https://novelbin.me/novel-book/rakuin-no-monshou#tab-chapters-title", conn, scrapingOps)
+    let metadata = await getNovelMetadata(scraper)
+    let chapterList = await getChapterList(scraper)
+    let coverImage = await getNovelCoverImage(scraper, conn, stagingPath, scrapingOps, imageOps)
+    let [chapterItems, otherItems] = await processAndWriteChapters(conn, scraper, stagingPath, chapterList, scrapingOps, imageOps, ParsingType.WithImage)
+
+    let items = otherItems.concat(chapterItems)
+    metadata.coverImage = coverImage
+    await createEpub(metadata, chapterItems, items, stagingPath, "hello.epub")
+
+    await conn.browser.close()
+
+    return
+}
 
 test();

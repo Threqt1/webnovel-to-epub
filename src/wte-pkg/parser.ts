@@ -2,12 +2,12 @@ import { downloadImagesLocally } from "./scraper.js";
 import * as cheerio from "cheerio";
 import {
     type Chapter,
+    type EpubItem,
     type ImageOptions,
     ParsingType,
     type ScrapingOptions,
 } from "./structs.js";
 import type { PageWithCursor } from "puppeteer-real-browser";
-import { IMAGE_DIR } from "./epub.js";
 
 const BANNED_TAGS = [
     "script",
@@ -31,7 +31,7 @@ export async function parseChapter(
     parsingType: ParsingType,
     scrapingOps: ScrapingOptions,
     imageOps: ImageOptions
-): Promise<void> {
+): Promise<EpubItem[]> {
     let $ = cheerio.load(chapter.content);
 
     let realBannedTags =
@@ -47,14 +47,14 @@ export async function parseChapter(
 
     if (parsingType === ParsingType.WithFormat) {
         chapter.content = $.html();
-        return;
+        return [];
     }
 
-    await parseImages(page, chapter, stagingPath, $, scrapingOps, imageOps);
+    let items = await parseImages(page, chapter, stagingPath, $, scrapingOps, imageOps);
 
     chapter.content = $.html();
 
-    return;
+    return items;
 }
 
 export async function parseImages(
@@ -64,7 +64,7 @@ export async function parseImages(
     $: cheerio.CheerioAPI,
     scrapingOps: ScrapingOptions,
     imageOps: ImageOptions
-): Promise<void> {
+): Promise<EpubItem[]> {
     let imageURLs: string[] = [];
     $("img").each((_, ele) => {
         let $ele = $(ele);
@@ -73,7 +73,7 @@ export async function parseImages(
     });
 
     if (imageURLs.length === 0) {
-        return;
+        return [];
     }
 
     let imagePaths = await downloadImagesLocally(
@@ -85,17 +85,20 @@ export async function parseImages(
         imageOps
     );
 
+    let items: EpubItem[] = []
+
     $("img").each((_, ele) => {
         let $ele = $(ele);
         if (!$ele.attr("src")) return;
-        let path = imagePaths[$ele.attr("src")!];
-        if (!path) {
+        let item = imagePaths[$ele.attr("src")!];
+        if (!item) {
             $ele.unwrap();
             $ele.remove();
         } else {
-            $ele.attr("src", `../${IMAGE_DIR}/${path}`);
+            items.push(item)
+            $ele.attr("src", `../${item.path}`);
         }
     });
 
-    return;
+    return items;
 }

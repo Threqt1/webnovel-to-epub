@@ -1,23 +1,26 @@
 import { Scraper } from "./baseScraper.js";
 import {
-    type Chapter,
     type ChapterSkeleton,
     type ScrapingOptions,
 } from "../wte-pkg/structs.js";
 import type { ConnectResult, PageWithCursor } from "puppeteer-real-browser";
 
-export default class NoveloonScraper extends Scraper {
+export default class NovelbinMeScraper extends Scraper {
     page!: PageWithCursor;
     url!: string;
     initialSetupComplete!: boolean;
     scrapingOps!: ScrapingOptions;
 
+    constructor() {
+        super();
+    }
+
     async initialize(
         url: string,
-        connection: ConnectResult,
+        connectionInfo: ConnectResult,
         scrapingOps: ScrapingOptions
     ): Promise<void> {
-        this.page = connection.page;
+        this.page = connectionInfo.page;
 
         await this.page.goto(url, {
             waitUntil: "domcontentloaded",
@@ -60,40 +63,23 @@ export default class NoveloonScraper extends Scraper {
     }
 
     async getAllChapters(): Promise<ChapterSkeleton[]> {
+        await this.page.goto(this.url, {
+            waitUntil: "networkidle0",
+            timeout: this.scrapingOps.timeout,
+        });
+
+        await this.page.waitForSelector("div.tab-content div.panel-body div.row ul.list-chapter a");
+
         let chapters: ChapterSkeleton[] = [];
-
-        while (true) {
-            await this.page.waitForSelector(
-                "main div div:nth-of-type(2) div ul li a"
-            );
-
-            let pageChapters: ChapterSkeleton[] = await this.page.$$eval(
-                "main div div:nth-of-type(2) div ul li a",
-                (elements) => {
-                    return elements.map((element, i: number) => {
-                        return {
-                            title: element.querySelector("h3")?.innerText || "",
-                            url: element.href,
-                            index: -1,
-                        };
-                    });
+        chapters = await this.page.$$eval("div.tab-content div.panel-body div.row ul.list-chapter a", (links) => {
+            return links.map(link => {
+                return {
+                    title: link.getAttribute("title")!,
+                    url: link.href,
+                    index: -1
                 }
-            );
-
-            chapters = chapters.concat(pageChapters);
-
-            let nextTOCPageURL = await this.page
-                .$eval(
-                    "main div div:nth-of-type(2) div div nav a:nth-child(3)",
-                    (a) => a.href
-                )
-                .catch(() => "");
-            if (nextTOCPageURL === "") break;
-
-            await this.page.goto(nextTOCPageURL, {
-                waitUntil: "domcontentloaded",
-            });
-        }
+            })
+        })
 
         for (let i = 0; i < chapters.length; i++) {
             chapters[i]!.index = i;
@@ -109,12 +95,14 @@ export default class NoveloonScraper extends Scraper {
         return this.scrapePageHTML(
             page,
             chapter,
-            "main div article",
+            "div#chr-content",
             this.scrapingOps
         );
     }
 
     matchUrl(url: string): boolean {
-        return this.baseMatchURL(url, ["noveloon.com"]);
+        return this.baseMatchURL(url, [
+            "novelbin.me",
+        ]);
     }
 }

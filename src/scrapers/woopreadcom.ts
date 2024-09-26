@@ -1,12 +1,11 @@
 import { Scraper } from "./baseScraper.js";
 import {
-    type Chapter,
     type ChapterSkeleton,
     type ScrapingOptions,
 } from "../wte-pkg/structs.js";
 import type { ConnectResult, PageWithCursor } from "puppeteer-real-browser";
 
-export default class WoopreadScraper extends Scraper {
+export default class WoopreadComScraper extends Scraper {
     page!: PageWithCursor;
     url!: string;
     initialSetupComplete!: boolean;

@@ -31,10 +31,8 @@ export async function createNewPage(
     connection: ConnectResult,
     allowImg: boolean = true
 ): Promise<PageWithCursor> {
-    //connectionInfo.setTarget({ status: false });
     let newPage = (await connection.browser.newPage()) as PageWithCursor;
     await setupPage(newPage, allowImg);
-    //connectionInfo.setTarget({ status: true });
     return newPage;
 }
 
