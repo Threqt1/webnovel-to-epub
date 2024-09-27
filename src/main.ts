@@ -31,11 +31,8 @@ import { join } from "path";
 
 /**
  * TODO:
- * Merge parsing and scraper
- * Pipe values to own files (xhtml template)
- * Make a custom EPUB thing which registers what chapters are on there, allows for addition/subtraction
- * make the main backend its own thing and create an api layer to interact with outside (so integration with app)
- * replace json schema with yup
+ * add logging capabilities
+ * add the thing to update current epub
  * create README.md
  * test manga functionality (test sharp)
  */
