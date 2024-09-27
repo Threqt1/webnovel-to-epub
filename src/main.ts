@@ -105,7 +105,7 @@ async function handleScrapeSingle(
 
     return {
         metadata,
-        chapters: chapterItems,
+        chapters: chapterItems.sort((a, b) => a.index - b.index),
         items: allItems,
     };
 }
