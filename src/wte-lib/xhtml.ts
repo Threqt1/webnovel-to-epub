@@ -86,16 +86,18 @@ export function createTOCXHTML(
 ): string {
   return `<?xml version="1.0" encoding="UTF-8" standalone="no"?>
   <!DOCTYPE html>
-  <head>
-    <title>${metadata.title}</title>
-  </head>
-  <html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en" lang="en">
-    <nav id="toc" epub:type="toc">
-      <ol>
-        ${chapters.map(r => `<li>
-            <a href=${r.path}>${r.title}</a>
-          </li>`).join("\n")}
-      </ol>
-    </nav>
+  <html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops" xml:lang="en" lang="en">
+    <head>
+      <title>${metadata.title}</title>
+    </head>
+    <body>
+      <nav id="toc" epub:type="toc">
+        <ol>
+          ${chapters.map(r => `<li>
+              <a href="${r.path}">${r.title}</a>
+            </li>`).join("\n")}
+        </ol>
+      </nav>
+    </body>
   </html>`
 }

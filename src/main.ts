@@ -1,5 +1,5 @@
 import { makeNewConnection } from "./wte-lib/connection.js";
-import { createEpub, createStagingDirectory } from "./wte-lib/epub.js";
+import { clearStagingDirectory, createEpub, createStagingDirectory } from "./wte-lib/epub.js";
 import {
     getNovelCoverImage,
     getNovelMetadata,
@@ -46,6 +46,7 @@ async function main() {
     let scrapingOption = await makeScrapingOptionsSelectionPrompt();
     let parsingType = await makeParsingOptionSelectionPrompt();
     let imageOptions = await makeImageOptionsPrompt();
+    let saveOptions = await makeWriteEpubSelectionPrompt();
 
     CONNECTION_INFO = await makeNewConnection();
 
@@ -59,7 +60,13 @@ async function main() {
             break;
     }
 
-    await handleWriteEpub(webnovel);
+    await handleWriteEpub(webnovel, saveOptions.savePath);
+
+    await CONNECTION_INFO.browser.close()
+
+    await clearStagingDirectory(TEMP_FILE_PATH)
+
+    return
 }
 
 async function handleScrapeSingle(
@@ -179,14 +186,12 @@ async function handleScrapeMultiple(
     };
 }
 
-async function handleWriteEpub(webnovel: Webnovel) {
-    let options = await makeWriteEpubSelectionPrompt();
-
+async function handleWriteEpub(webnovel: Webnovel, savePath: string) {
     await createEpub(
         webnovel,
         TEMP_FILE_PATH,
         join(
-            options.savePath,
+            savePath,
             `${slugify.default(webnovel.metadata.title, " ")}.epub`
         )
     );
