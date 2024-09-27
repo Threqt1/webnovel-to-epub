@@ -3,7 +3,7 @@ import {
     type ChapterSkeleton,
     ParsingType,
     type ScrapingOptions,
-} from "../wte-pkg/structs.js";
+} from "../structs.js";
 import type { ConnectResult, PageWithCursor } from "puppeteer-real-browser";
 
 export abstract class Scraper {

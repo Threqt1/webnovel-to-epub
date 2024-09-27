@@ -1,46 +1,33 @@
-// import { mkdir, rm } from "fs/promises";
-// import {
-//     DefaultProgressBarCustomization,
-//     printError,
-//     printLog,
-// } from "./logger.js";
-// import { TEMP_FILE_PATH } from "./wte-pkg/strings.js";
-// import {
-//     ExportOption,
-//     makeExportOptionsSelectionPrompt,
-//     makeImageOptionsPrompt,
-//     makeJSONMultipleSelectionPrompt,
-//     makeJSONSingleSelectionPrompt,
-//     makeParsingOptionSelectionPrompt,
-//     makeScrapeMultipleSelectionPrompt,
-//     makeScrapeSingleSelectionPrompt,
-//     makeScrapingOptionsSelectionPrompt,
-//     makeWriteEpubSelectionPrompt,
-//     makeWriteJSONSelectionPrompt,
-//     type ParserOptions,
-//     ScraperOption,
-// } from "./cli.js";
-// import { MultiProgressBars } from "multi-progress-bars";
-// import {
-//     type ImageOptions,
-//     ParsingType,
-//     type Webnovel,
-// } from "./wte-pkg/structs.js";
-// import { makeNewConnection, scrapeWebnovel } from "./wte-pkg/scraper.js";
-// import {
-//     combineWebnovels,
-//     readWebnovelFromJSON,
-//     writeWebnovelToJSON,
-// } from "./json.js";
-// import { parseWebnovel } from "./parser.js";
-// import { writeWebnovelToEpub } from "./epub.js";
-// import type { ConnectResult } from "puppeteer-real-browser";
-
-import { makeNewConnection } from "./wte-pkg/connection.js";
-import { createEpub, createStagingDirectory } from "./wte-pkg/epub.js";
-import { getChapterList, getNovelCoverImage, getNovelMetadata, getScraperForURL, processAndWriteChapters } from "./wte-pkg/scraper.js";
-import { TEMP_FILE_PATH } from "./wte-pkg/strings.js";
-import { ParsingType } from "./wte-pkg/structs.js";
+import { makeNewConnection } from "./wte-lib/connection.js";
+import { createEpub, createStagingDirectory } from "./wte-lib/epub.js";
+import {
+    getNovelCoverImage,
+    getNovelMetadata,
+    getScraperForURL,
+    processAndWriteChapters,
+} from "./wte-lib/scraper.js";
+import { TEMP_FILE_PATH } from "./wte-lib/strings.js";
+import {
+    ParsingType,
+    type ChapterEpubItem,
+    type EpubItem,
+    type ImageOptions,
+    type Metadata,
+    type ScrapingOptions,
+    type Webnovel,
+} from "./wte-lib/structs.js";
+import type { ConnectResult } from "puppeteer-real-browser";
+import {
+    makeScrapingOptionsSelectionPrompt,
+    makeParsingOptionSelectionPrompt,
+    makeImageOptionsPrompt,
+    ScraperOption,
+    makeScrapeSingleSelectionPrompt,
+    makeScrapeMultipleSelectionPrompt,
+    makeWriteEpubSelectionPrompt,
+} from "./cli.js";
+import slugify from "slugify";
+import { join } from "path";
 
 /**
  * TODO:
@@ -53,279 +40,243 @@ import { ParsingType } from "./wte-pkg/structs.js";
  * test manga functionality (test sharp)
  */
 
-// function createProgressBars() {
-//     return new MultiProgressBars({
-//         initMessage: "Webnovel To Epub CLI",
-//         anchor: "top",
-//         persist: true,
-//         border: true,
-//     });
-// }
+let CONNECTION_INFO: ConnectResult;
 
-// let CONNECTION_INFO: ConnectResult | undefined;
+async function main() {
+    let scrapingOption = await makeScrapingOptionsSelectionPrompt();
+    let parsingType = await makeParsingOptionSelectionPrompt();
+    let imageOptions = await makeImageOptionsPrompt();
 
-// async function main() {
-//     try {
-//         printLog("making temp dir");
-//         await mkdir(TEMP_FILE_PATH);
-//     } catch (e) {
-//         console.log(e);
-//     }
+    CONNECTION_INFO = await makeNewConnection();
 
-//     let scrapingOption = await makeScrapingOptionsSelectionPrompt();
-//     let parsingOptions = await makeParsingOptionSelectionPrompt();
-//     let imageOptions = await makeImageOptionsPrompt();
+    let webnovel: Webnovel | null;
+    switch (scrapingOption) {
+        case ScraperOption.ScrapeSingle:
+            webnovel = await handleScrapeSingle(imageOptions, parsingType);
+            break;
+        case ScraperOption.ScrapeMultiple:
+            webnovel = await handleScrapeMultiple(imageOptions, parsingType);
+            break;
+    }
 
-//     let pb = createProgressBars();
-
-//     pb.addTask("starting puppeteer...", DefaultProgressBarCustomization);
-
-//     CONNECTION_INFO = await makeNewConnection();
-
-//     pb.done("starting puppeteer...", {
-//         nameTransformFn: () => `started puppeteer`,
-//     });
-
-//     let webnovel: Webnovel | null;
-//     switch (scrapingOption) {
-//         case ScraperOption.ScrapeSingle:
-//             webnovel = await handleScrapeSingle(parsingOptions.parsingType, pb);
-//             break;
-//         case ScraperOption.ScrapeMultiple:
-//             webnovel = await handleScrapeMultiple(
-//                 parsingOptions.parsingType,
-//                 pb
-//             );
-//             break;
-//         case ScraperOption.JSONSingle:
-//             webnovel = await handleJSONSingle(pb);
-//             break;
-//         case ScraperOption.JSONMultiple:
-//             webnovel = await handleJSONMultiple(pb);
-//             break;
-//     }
-
-//     if (!webnovel) {
-//         printError("failed to obtain webnovel");
-//         return;
-//     }
-
-//     pb.close();
-
-//     pb = createProgressBars();
-
-//     let parsedNovel = await handleParseWebnovel(
-//         webnovel,
-//         parsingOptions,
-//         imageOptions,
-//         pb
-//     );
-
-//     if (!parsedNovel) {
-//         return printError("failed to parse webnovel");
-//     }
-
-//     pb.close();
-
-//     pb = createProgressBars();
-
-//     let exportOptions = await makeExportOptionsSelectionPrompt();
-//     switch (exportOptions) {
-//         case ExportOption.WriteEpub:
-//             await handleWriteEpub(webnovel, imageOptions, pb);
-//             break;
-//         case ExportOption.WriteJSON:
-//             await handleWriteJSON(webnovel, pb);
-//             break;
-//     }
-
-//     try {
-//         printLog("cleaning up temp dir");
-//         await CONNECTION_INFO.browser.close();
-//         await rm(TEMP_FILE_PATH, {
-//             recursive: true,
-//             force: true,
-//         });
-//     } catch (e) {}
-// }
-
-// async function handleScrapeSingle(
-//     parsingType: ParsingType,
-//     pb: MultiProgressBars
-// ) {
-//     let options = await makeScrapeSingleSelectionPrompt();
-
-//     let webnovel: Webnovel | undefined;
-//     try {
-//         webnovel = await scrapeWebnovel(
-//             options.url,
-//             CONNECTION_INFO,
-//             parsingType,
-//             {
-//                 concurrency: options.concurrencyPages,
-//                 timeout: options.timeout,
-//             },
-//             pb
-//         );
-//     } catch (e) {
-//         console.log(e);
-//         printError(`failed to parse webnovel at url ${options.url}`);
-//     }
-
-//     return webnovel;
-// }
-
-// async function handleScrapeMultiple(
-//     parsingType: ParsingType,
-//     pb: MultiProgressBars
-// ) {
-//     let options = await makeScrapeMultipleSelectionPrompt();
-
-//     let webnovels: Webnovel[] = [];
-//     for (let url of options.webnovelURLs) {
-//         let webnovel: Webnovel | undefined;
-//         try {
-//             webnovel = await scrapeWebnovel(
-//                 url,
-//                 CONNECTION_INFO,
-//                 parsingType,
-//                 {
-//                     concurrency: options.concurrencyPages,
-//                     timeout: options.timeout,
-//                 },
-//                 pb
-//             );
-//         } catch (e) {
-//             printError(`failed to parse webnovel at url ${url}`);
-//         }
-
-//         if (webnovel) webnovels.push(webnovel);
-//     }
-
-//     if (webnovels.length == 0) return null;
-
-//     let combined = await combineWebnovels(webnovels, options.indexToKeepData);
-
-//     return combined;
-// }
-
-// async function handleJSONSingle(pb: MultiProgressBars) {
-//     let options = await makeJSONSingleSelectionPrompt();
-
-//     let webnovel: Webnovel | undefined;
-//     try {
-//         webnovel = await readWebnovelFromJSON({ path: options.readPath }, pb);
-//     } catch (e) {
-//         printError(`failed to parse webnovel at path ${options.readPath}`);
-//     }
-
-//     return webnovel;
-// }
-
-// async function handleJSONMultiple(pb: MultiProgressBars) {
-//     let options = await makeJSONMultipleSelectionPrompt();
-
-//     let webnovels: Webnovel[] = [];
-//     for (let path of options.readPaths) {
-//         let webnovel: Webnovel | undefined;
-//         try {
-//             webnovel = await readWebnovelFromJSON(
-//                 {
-//                     path: path,
-//                 },
-//                 pb
-//             );
-//         } catch (e) {
-//             printError(`failed to parse webnovel at path ${path}`);
-//         }
-
-//         webnovels.push(webnovel);
-//     }
-
-//     if (webnovels.length == 0) return null;
-
-//     let combined = await combineWebnovels(webnovels, options.indexToKeepData);
-
-//     return combined;
-// }
-
-// async function handleParseWebnovel(
-//     webnovel: Webnovel,
-//     parserOptions: ParserOptions,
-//     imageOptions: ImageOptions,
-//     pb: MultiProgressBars
-// ) {
-//     let parsedNovel: Webnovel | undefined;
-//     try {
-//         parsedNovel = await parseWebnovel(
-//             webnovel,
-//             CONNECTION_INFO,
-//             parserOptions.parsingType,
-//             {
-//                 concurrency: parserOptions.concurrencyPages,
-//                 timeout: parserOptions.timeout,
-//             },
-//             imageOptions,
-//             pb
-//         );
-//     } catch (e) {}
-
-//     return parsedNovel;
-// }
-
-// async function handleWriteEpub(
-//     webnovel: Webnovel,
-//     imageOptions: ImageOptions,
-//     pb: MultiProgressBars
-// ) {
-//     let options = await makeWriteEpubSelectionPrompt();
-
-//     try {
-//         await writeWebnovelToEpub(
-//             webnovel,
-//             CONNECTION_INFO,
-//             { path: options.savePath },
-//             { timeout: options.timeout, concurrency: 1 },
-//             imageOptions,
-//             pb
-//         );
-//     } catch (e) {
-//         printError("failed to write to epub");
-//     }
-// }
-
-// async function handleWriteJSON(webnovel: Webnovel, pb: MultiProgressBars) {
-//     let options = await makeWriteJSONSelectionPrompt();
-
-//     try {
-//         await writeWebnovelToJSON(webnovel, { path: options.savePath }, pb);
-//     } catch (e) {
-//         printError("failed to write to json");
-//     }
-// }
-
-// main();
-
-async function test() {
-    let stagingPath = TEMP_FILE_PATH
-    await createStagingDirectory(stagingPath)
-
-    let scrapingOps = { concurrency: 3, timeout: 10000 }
-    let imageOps = { quality: 80, shouldResize: false, maxHeight: 0, maxWidth: 0, webp: false }
-    let conn = await makeNewConnection();
-    let scraper = await getScraperForURL("https://novelbin.me/novel-book/rakuin-no-monshou#tab-chapters-title", conn, scrapingOps)
-    let metadata = await getNovelMetadata(scraper)
-    let chapterList = await getChapterList(scraper)
-    let coverImage = await getNovelCoverImage(scraper, conn, stagingPath, scrapingOps, imageOps)
-    let [chapterItems, otherItems] = await processAndWriteChapters(conn, scraper, stagingPath, chapterList, scrapingOps, imageOps, ParsingType.WithImage)
-
-    let items = otherItems.concat(chapterItems)
-    metadata.coverImage = coverImage
-    await createEpub(metadata, chapterItems, items, stagingPath, "hello.epub")
-
-    await conn.browser.close()
-
-    return
+    await handleWriteEpub(webnovel);
 }
 
-test();
+async function handleScrapeSingle(
+    imageOptions: ImageOptions,
+    parsingType: ParsingType
+) {
+    let options = await makeScrapeSingleSelectionPrompt();
+    let scraperOptions: ScrapingOptions = {
+        concurrency: options.concurrencyPages,
+        timeout: options.timeout,
+    };
+
+    await createStagingDirectory(TEMP_FILE_PATH);
+
+    let scraper = await getScraperForURL(
+        options.url,
+        CONNECTION_INFO,
+        scraperOptions
+    );
+    let metadata = await getNovelMetadata(scraper);
+    let coverImage = await getNovelCoverImage(
+        scraper,
+        CONNECTION_INFO,
+        TEMP_FILE_PATH,
+        scraperOptions,
+        imageOptions
+    );
+    metadata.coverImage = coverImage;
+    let chapters = await scraper.getAllChapters();
+    let [chapterItems, allItems] = await processAndWriteChapters(
+        CONNECTION_INFO,
+        scraper,
+        TEMP_FILE_PATH,
+        chapters,
+        scraperOptions,
+        imageOptions,
+        parsingType
+    );
+
+    return {
+        metadata,
+        chapters: chapterItems,
+        items: allItems,
+    };
+}
+
+async function handleScrapeMultiple(
+    imageOptions: ImageOptions,
+    parsingType: ParsingType
+) {
+    let options = await makeScrapeMultipleSelectionPrompt();
+    let scraperOptions: ScrapingOptions = {
+        concurrency: options.concurrencyPages,
+        timeout: options.timeout,
+    };
+
+    await createStagingDirectory(TEMP_FILE_PATH);
+
+    let metadata: Metadata = {
+        title: "",
+        author: "",
+        id: "",
+    };
+    let chapters: ChapterEpubItem[] = [];
+    let items: EpubItem[] = [];
+    let indexIncrement = 0;
+
+    for (let i = 0; i < options.webnovelURLs.length; i++) {
+        let url = options.webnovelURLs[i]!;
+
+        let scraper = await getScraperForURL(
+            url,
+            CONNECTION_INFO,
+            scraperOptions
+        );
+
+        if (i == options.indexToKeepData) {
+            metadata = await getNovelMetadata(scraper);
+            let coverImage = await getNovelCoverImage(
+                scraper,
+                CONNECTION_INFO,
+                TEMP_FILE_PATH,
+                scraperOptions,
+                imageOptions
+            );
+            metadata.coverImage = coverImage;
+        }
+
+        let chapters = await scraper.getAllChapters();
+        let [chapterItems, allItems] = await processAndWriteChapters(
+            CONNECTION_INFO,
+            scraper,
+            TEMP_FILE_PATH,
+            chapters,
+            scraperOptions,
+            imageOptions,
+            parsingType
+        );
+
+        chapters.push(
+            ...chapterItems
+                .sort((a, b) => a.index - b.index)
+                .map((r) => {
+                    return { ...r, index: (r.index += indexIncrement) };
+                })
+        );
+
+        items.push(...allItems);
+
+        indexIncrement += chapterItems.length;
+    }
+
+    return {
+        metadata,
+        chapters,
+        items,
+    };
+}
+
+async function handleWriteEpub(webnovel: Webnovel) {
+    let options = await makeWriteEpubSelectionPrompt();
+
+    await createEpub(
+        webnovel,
+        TEMP_FILE_PATH,
+        join(
+            options.savePath,
+            `${slugify.default(webnovel.metadata.title, " ")}.epub`
+        )
+    );
+}
+
+main();
+
+// async function test() {
+//     // let stagingPath = TEMP_FILE_PATH;
+//     // await createStagingDirectory(stagingPath);
+
+//     let scrapingOps = { concurrency: 3, timeout: 3000 };
+//     let imageOps = {
+//         quality: 80,
+//         shouldResize: false,
+//         maxHeight: 0,
+//         maxWidth: 0,
+//         webp: false,
+//     };
+//     let conn = await makeNewConnection();
+//     let scraper = await getScraperForURL(
+//         "https://novelbin.me/novel-book/rakuin-no-monshou",
+//         conn,
+//         scrapingOps
+//     );
+//     // let metadata = await getNovelMetadata(scraper);
+//     // let chapterList = await getChapterList(scraper);
+//     // let coverImage = await getNovelCoverImage(
+//     //     scraper,
+//     //     conn,
+//     //     stagingPath,
+//     //     scrapingOps,
+//     //     imageOps
+//     // );
+//     // let [chapterItems, otherItems] = await processAndWriteChapters(
+//     //     conn,
+//     //     scraper,
+//     //     stagingPath,
+//     //     chapterList,
+//     //     scrapingOps,
+//     //     imageOps,
+//     //     ParsingType.WithImage
+//     // );
+
+//     // let items = otherItems.concat(chapterItems);
+//     // metadata.coverImage = coverImage;
+//     // await createEpub(
+//     //     metadata,
+//     //     chapterItems,
+//     //     items,
+//     //     stagingPath,
+//     //     `${slugify.default(metadata.title, " ")}.epub`
+//     // );
+
+//     // await conn.browser.close();
+
+//     // await clearStagingDirectory(stagingPath);
+
+//     let chapterList = await scraper.getAllChapters();
+
+//     let novel = await unzipAndParseEpub(
+//         "Rakuin no Monshou.epub",
+//         TEMP_FILE_PATH
+//     );
+
+//     let not_added_chapters = chapterList.filter(
+//         (r) => !novel.chapters.find((t) => t.url == r.url)
+//     );
+
+//     let [newChapters, newItems] = await processAndWriteChapters(
+//         conn,
+//         scraper,
+//         TEMP_FILE_PATH,
+//         not_added_chapters,
+//         scrapingOps,
+//         imageOps,
+//         ParsingType.WithImage
+//     );
+
+//     await createEpub(
+//         novel.metadata,
+//         [...novel.chapters, ...newChapters].sort((a, b) => a.index - b.index),
+//         [...novel.items, ...newItems, ...newChapters],
+//         TEMP_FILE_PATH,
+//         "testing.epub"
+//     );
+
+//     await conn.browser.close();
+
+//     return;
+// }
+
+// test();

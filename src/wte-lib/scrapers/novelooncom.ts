@@ -1,8 +1,5 @@
 import { Scraper } from "./baseScraper.js";
-import {
-    type ChapterSkeleton,
-    type ScrapingOptions,
-} from "../wte-pkg/structs.js";
+import { type ChapterSkeleton, type ScrapingOptions } from "../structs.js";
 import type { ConnectResult, PageWithCursor } from "puppeteer-real-browser";
 
 export default class NoveloonComScraper extends Scraper {

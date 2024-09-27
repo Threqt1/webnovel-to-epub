@@ -1,8 +1,5 @@
 import { Scraper } from "./baseScraper.js";
-import {
-    type ChapterSkeleton,
-    type ScrapingOptions,
-} from "../wte-pkg/structs.js";
+import { type ChapterSkeleton, type ScrapingOptions } from "../structs.js";
 import type { ConnectResult, PageWithCursor } from "puppeteer-real-browser";
 
 export default class NovelbinMeScraper extends Scraper {
@@ -22,12 +19,13 @@ export default class NovelbinMeScraper extends Scraper {
     ): Promise<void> {
         this.page = connectionInfo.page;
 
-        await this.page.goto(url, {
-            waitUntil: "domcontentloaded",
+        this.url = url + "#tab-chapters-title";
+
+        await this.page.goto(this.url, {
+            waitUntil: "networkidle0",
             timeout: scrapingOps.timeout,
         });
 
-        this.url = url;
         this.scrapingOps = scrapingOps;
         this.initialSetupComplete = true;
     }
@@ -63,23 +61,23 @@ export default class NovelbinMeScraper extends Scraper {
     }
 
     async getAllChapters(): Promise<ChapterSkeleton[]> {
-        await this.page.goto(this.url, {
-            waitUntil: "networkidle0",
-            timeout: this.scrapingOps.timeout,
-        });
-
-        await this.page.waitForSelector("div.tab-content div.panel-body div.row ul.list-chapter a");
+        await this.page.waitForSelector(
+            "div.tab-content div.panel-body div.row ul.list-chapter a"
+        );
 
         let chapters: ChapterSkeleton[] = [];
-        chapters = await this.page.$$eval("div.tab-content div.panel-body div.row ul.list-chapter a", (links) => {
-            return links.map(link => {
-                return {
-                    title: link.getAttribute("title")!,
-                    url: link.href,
-                    index: -1
-                }
-            })
-        })
+        chapters = await this.page.$$eval(
+            "div.tab-content div.panel-body div.row ul.list-chapter a",
+            (links) => {
+                return links.map((link) => {
+                    return {
+                        title: link.getAttribute("title")!,
+                        url: link.href,
+                        index: -1,
+                    };
+                });
+            }
+        );
 
         for (let i = 0; i < chapters.length; i++) {
             chapters[i]!.index = i;
@@ -101,8 +99,6 @@ export default class NovelbinMeScraper extends Scraper {
     }
 
     matchUrl(url: string): boolean {
-        return this.baseMatchURL(url, [
-            "novelbin.me",
-        ]);
+        return this.baseMatchURL(url, ["novelbin.me"]);
     }
 }
