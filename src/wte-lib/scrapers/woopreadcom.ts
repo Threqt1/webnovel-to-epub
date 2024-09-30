@@ -4,7 +4,6 @@ import type { ConnectResult, PageWithCursor } from "puppeteer-real-browser";
 
 export default class WoopreadComScraper extends Scraper {
     page!: PageWithCursor;
-    url!: string;
     initialSetupComplete!: boolean;
     scrapingOps!: ScrapingOptions;
 

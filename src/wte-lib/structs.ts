@@ -27,6 +27,7 @@ export type Metadata = {
     author: string;
     coverImage?: EpubItem;
     id: string;
+    tocUrls: string[];
 };
 
 export type Webnovel = {
@@ -59,6 +60,7 @@ export const JSONSchema = Yup.object().shape({
                 type: Yup.string().required(),
             }),
             id: Yup.string().required(),
+            tocUrls: Yup.array().of(Yup.string()).required()
         })
         .required(),
     chapters: Yup.array()

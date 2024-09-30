@@ -7,6 +7,8 @@ import {
 import type { ConnectResult, PageWithCursor } from "puppeteer-real-browser";
 
 export abstract class Scraper {
+    public url!: string;
+
     abstract initialize(
         baseUrl: string,
         connection: ConnectResult,

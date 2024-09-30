@@ -8,6 +8,7 @@ inquirer.registerPrompt("file-tree-selection", FileTreeSelectionPrompt);
 export enum ScraperOption {
     ScrapeSingle = 0,
     ScrapeMultiple = 1,
+    UpdateEpub = 2,
 }
 
 export async function makeScrapingOptionsSelectionPrompt(): Promise<ScraperOption> {
@@ -25,6 +26,10 @@ export async function makeScrapingOptionsSelectionPrompt(): Promise<ScraperOptio
                     name: "Scrape and combine multiple webnovels from the web",
                     value: ScraperOption.ScrapeMultiple,
                 },
+                {
+                    name: "Update an existing WTE-generated epub",
+                    value: ScraperOption.UpdateEpub
+                }
             ],
         },
     ]);
@@ -221,6 +226,55 @@ export async function makeImageOptionsPrompt(): Promise<ImageOptions> {
         webp: true,
     };
 }
+
+type UpdateEpubOptions = {
+    epubPath: string,
+    concurrencyPages: number;
+    timeout: number;
+}
+
+export async function makeUpdateEpubSelectionPrompt(): Promise<UpdateEpubOptions> {
+    let answer = await inquirer.prompt([
+        {
+            type: "file-tree-selection",
+            enableGoUpperDirectory: true,
+            name: "readPath",
+            message: "Select the epub to update (must have been created with WTE):\n",
+            root: download(),
+            onlyShowValid: true,
+            validate: (input: string) => {
+                let fileName = input.split("/").at(-1);
+                if (fileName === undefined) return false;
+                let fileExtension = fileName.split(".").at(-1);
+                if (fileExtension === undefined) return false;
+                return fileExtension.toLowerCase() === "epub";
+            },
+        },
+        {
+            type: "number",
+            name: "concurrencyPages",
+            message:
+                "Enter the maximum amount of concurrent tabs to scrape with (default 3):\n",
+            validate: (input: number) => {
+                return !isNaN(input);
+            },
+            default: 3,
+        },
+        {
+            type: "number",
+            name: "timeout",
+            message:
+                "Enter the maximum amount of time to wait for a page to load (default 10000ms):",
+            validate: (input: number) => {
+                return !isNaN(input);
+            },
+            default: 10000,
+        },
+    ]);
+
+    return answer;
+}
+
 
 type WriteEpubOptions = {
     savePath: string;

@@ -1,5 +1,5 @@
 import { makeNewConnection } from "./wte-lib/connection.js";
-import { clearStagingDirectory, createEpub, createStagingDirectory } from "./wte-lib/epub.js";
+import { clearStagingDirectory, createEpub, createStagingDirectory, unzipAndParseEpub } from "./wte-lib/epub.js";
 import {
     getNovelCoverImage,
     getNovelMetadata,
@@ -25,9 +25,12 @@ import {
     makeScrapeSingleSelectionPrompt,
     makeScrapeMultipleSelectionPrompt,
     makeWriteEpubSelectionPrompt,
+    makeUpdateEpubSelectionPrompt,
 } from "./cli.js";
 import slugify from "slugify";
 import { join } from "path";
+import { printError, printLog } from "./logger.js";
+import chalk from "chalk";
 
 /**
  * TODO:
@@ -40,30 +43,46 @@ import { join } from "path";
 let CONNECTION_INFO: ConnectResult;
 
 async function main() {
-    let scrapingOption = await makeScrapingOptionsSelectionPrompt();
-    let parsingType = await makeParsingOptionSelectionPrompt();
-    let imageOptions = await makeImageOptionsPrompt();
-    let saveOptions = await makeWriteEpubSelectionPrompt();
+    try {
+        let scrapingOption = await makeScrapingOptionsSelectionPrompt();
+        let parsingType = await makeParsingOptionSelectionPrompt();
+        let imageOptions = await makeImageOptionsPrompt();
+        let saveOptions = await makeWriteEpubSelectionPrompt();
 
-    CONNECTION_INFO = await makeNewConnection();
+        printLog("Starting Puppeteer...")
 
-    let webnovel: Webnovel | null;
-    switch (scrapingOption) {
-        case ScraperOption.ScrapeSingle:
-            webnovel = await handleScrapeSingle(imageOptions, parsingType);
-            break;
-        case ScraperOption.ScrapeMultiple:
-            webnovel = await handleScrapeMultiple(imageOptions, parsingType);
-            break;
+        CONNECTION_INFO = await makeNewConnection();
+
+        let webnovel: Webnovel | null;
+        switch (scrapingOption) {
+            case ScraperOption.ScrapeSingle:
+                webnovel = await handleScrapeSingle(imageOptions, parsingType);
+                break;
+            case ScraperOption.ScrapeMultiple:
+                webnovel = await handleScrapeMultiple(imageOptions, parsingType);
+                break;
+            case ScraperOption.UpdateEpub:
+                webnovel = await handleUpdateEpub(imageOptions, parsingType)
+        }
+
+        printLog(`Writing epub file to ${saveOptions.savePath}`)
+
+        await handleWriteEpub(webnovel, saveOptions.savePath);
+
+        printLog("Closing browser...")
+
+        await CONNECTION_INFO.browser.close()
+
+        printLog("Cllearing temporary directory...")
+
+        await clearStagingDirectory(TEMP_FILE_PATH)
+
+        printLog("Finished")
+
+        return
+    } catch (e: any) {
+        return printError(e)
     }
-
-    await handleWriteEpub(webnovel, saveOptions.savePath);
-
-    await CONNECTION_INFO.browser.close()
-
-    await clearStagingDirectory(TEMP_FILE_PATH)
-
-    return
 }
 
 async function handleScrapeSingle(
@@ -76,6 +95,8 @@ async function handleScrapeSingle(
         timeout: options.timeout,
     };
 
+    printLog("Making staging directory...")
+
     await createStagingDirectory(TEMP_FILE_PATH);
 
     let scraper = await getScraperForURL(
@@ -83,7 +104,14 @@ async function handleScrapeSingle(
         CONNECTION_INFO,
         scraperOptions
     );
+
+    printLog("Obtaining metadata...")
+
     let metadata = await getNovelMetadata(scraper);
+
+    printLog(`${chalk.bold("Title:")} ${metadata.title}\n${chalk.bold("Author:")} ${metadata.author}`)
+
+    printLog(`Obtaining cover image...`)
     let coverImage = await getNovelCoverImage(
         scraper,
         CONNECTION_INFO,
@@ -92,7 +120,13 @@ async function handleScrapeSingle(
         imageOptions
     );
     metadata.coverImage = coverImage;
+
+    printLog(`Scraping table of contents...`)
+
     let chapters = await scraper.getAllChapters();
+
+    printLog(`Got ${chapters.length} chapters. Beginning to scrape (this may take a while)...`)
+
     let [chapterItems, allItems] = await processAndWriteChapters(
         CONNECTION_INFO,
         scraper,
@@ -105,7 +139,7 @@ async function handleScrapeSingle(
 
     return {
         metadata,
-        chapters: chapterItems.sort((a, b) => a.index - b.index),
+        chapters: chapterItems.sort((a, b) => a.index - b.index).map(r => { return { ...r, index: parseInt(`1${r.index}`) } }),
         items: allItems,
     };
 }
@@ -120,19 +154,24 @@ async function handleScrapeMultiple(
         timeout: options.timeout,
     };
 
+    printLog("Making staging directory...")
+
     await createStagingDirectory(TEMP_FILE_PATH);
 
     let metadata: Metadata = {
         title: "",
         author: "",
         id: "",
+        tocUrls: []
     };
     let chapters: ChapterEpubItem[] = [];
     let items: EpubItem[] = [];
-    let indexIncrement = 0;
+    let indexIncrement = 1
 
     for (let i = 0; i < options.webnovelURLs.length; i++) {
         let url = options.webnovelURLs[i]!;
+
+        printLog(`Scraping novel at url ${url}...`)
 
         let scraper = await getScraperForURL(
             url,
@@ -152,7 +191,11 @@ async function handleScrapeMultiple(
             metadata.coverImage = coverImage;
         }
 
+        printLog(`Scraping table of contents...`)
+
         let chapters = await scraper.getAllChapters();
+
+        printLog(`Got ${chapters.length} chapters. Beginning to scrape (this may take a while)...`)
         let [chapterItems, allItems] = await processAndWriteChapters(
             CONNECTION_INFO,
             scraper,
@@ -165,22 +208,57 @@ async function handleScrapeMultiple(
 
         chapters.push(
             ...chapterItems
-                .sort((a, b) => a.index - b.index)
                 .map((r) => {
-                    return { ...r, index: (r.index += indexIncrement) };
+                    return { ...r, index: parseInt(`${indexIncrement}${r.id}`) };
                 })
         );
 
         items.push(...allItems);
 
-        indexIncrement += chapterItems.length;
+        indexIncrement += 1;
     }
+
+    metadata.tocUrls = options.webnovelURLs
 
     return {
         metadata,
-        chapters,
+        chapters: chapters.sort((a, b) => a.index - b.index),
         items,
     };
+}
+
+async function handleUpdateEpub(imageOptions: ImageOptions, parsingType: ParsingType): Promise<Webnovel> {
+    let options = await makeUpdateEpubSelectionPrompt()
+    let scrapingOptions: ScrapingOptions = {
+        concurrency: options.concurrencyPages,
+        timeout: options.timeout
+    }
+
+    printLog("Parsing epub file...")
+
+    let webnovel = await unzipAndParseEpub(options.epubPath, TEMP_FILE_PATH)
+
+    let indexIncrement = 0;
+    for (let url of webnovel.metadata.tocUrls) {
+        printLog(`Checking for new chapters from ${url}`)
+
+        let scraper = await getScraperForURL(url, CONNECTION_INFO, scrapingOptions)
+        let chapterList = await scraper.getAllChapters()
+        let newChapters = chapterList.filter(r => !webnovel.chapters.find(i => i.url === r.url))
+
+        printLog(`Got ${newChapters.length} new chapters. Scraping and parsing...`)
+
+        let [newChapterItems, newItems] = await processAndWriteChapters(CONNECTION_INFO, scraper, TEMP_FILE_PATH, newChapters, scrapingOptions, imageOptions, parsingType)
+
+        webnovel.chapters.push(...newChapterItems.map(r => { return { ...r, index: parseInt(`${indexIncrement}${r.index}`) } }))
+        webnovel.items.push(...newItems)
+
+        indexIncrement += 1
+    }
+
+    webnovel.chapters = webnovel.chapters.sort((a, b) => a.index - b.index)
+
+    return webnovel
 }
 
 async function handleWriteEpub(webnovel: Webnovel, savePath: string) {

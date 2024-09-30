@@ -46,6 +46,7 @@ export async function getNovelMetadata(scraper: Scraper): Promise<Metadata> {
         title,
         author,
         id: uuidv4(),
+        tocUrls: [scraper.url]
     };
 }
 
@@ -199,16 +200,15 @@ export async function downloadImagesLocally(
                     );
                     await image.toFile(path);
                     filePaths[response.url()] = {
-                        path: `${IMAGE_DIR}/${`${id}.${
-                            imageOptions.webp ? "webp" : "png"
-                        }`}`,
+                        path: `${IMAGE_DIR}/${`${id}.${imageOptions.webp ? "webp" : "png"
+                            }`}`,
                         id,
                         type: EPUB_ITEM_TYPES.img(
                             imageOptions.webp ? "webp" : "png"
                         ),
                     };
                     fileURLs = fileURLs.filter((r) => r != response.url());
-                } catch (e) {}
+                } catch (e) { }
             }
         });
     });
@@ -218,7 +218,7 @@ export async function downloadImagesLocally(
             page.goto(pageURL);
             success = await promise;
             tries++;
-        } catch (e) {}
+        } catch (e) { }
     }
 
     return filePaths;
