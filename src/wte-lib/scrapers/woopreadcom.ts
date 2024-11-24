@@ -29,18 +29,18 @@ export default class WoopreadComScraper extends Scraper {
     }
 
     async getTitle(): Promise<string> {
-        await this.page.waitForSelector("div.post-title");
-        let title: string = await this.page.$eval("div.post-title", (div) =>
-            div.innerText.trim()
+        await this.page.waitForSelector(`meta[property="og:title"]`);
+        let title: string = await this.page.$eval(`meta[property="og:title"]`, (ele) =>
+            ele.content
         );
 
         return title;
     }
 
     async getAuthor(): Promise<string> {
-        await this.page.waitForSelector("div.author-content");
+        await this.page.waitForSelector("main > div > div:nth-of-type(1) > div:nth-of-type(2) > div:nth-of-type(4) > a");
         let author: string = await this.page.$eval(
-            "div.author-content",
+            "main > div > div:nth-of-type(1) > div:nth-of-type(2) > div:nth-of-type(4) > a",
             (element) => element.innerText.trim()
         );
 
@@ -58,57 +58,29 @@ export default class WoopreadComScraper extends Scraper {
     }
 
     async getAllChapters(): Promise<ChapterSkeleton[]> {
-        await this.page.waitForSelector("div#manga-chapters-holder ul.main");
+        await this.page.waitForSelector("main > div > div:nth-of-type(2) > button")
 
-        let chapters: ChapterSkeleton[] = [];
-        //check if there are volumes
-        let isInVolumes = await this.page
-            .$eval("ul.sub-chap-list", () => true)
-            .catch(() => false);
-        if (isInVolumes) {
-            chapters = await this.page.$$eval(
-                "div#manga-chapters-holder ul.sub-chap-list",
-                (volumes) => {
-                    let localChapters: ChapterSkeleton[] = [];
-                    for (let volume of volumes) {
-                        let volumeChapters: ChapterSkeleton[] = [];
-                        let links = volume.querySelectorAll("li a");
-                        links.forEach((ele: Element) => {
-                            let link = ele as HTMLAnchorElement;
-                            volumeChapters.push({
-                                title: link.innerText.trim(),
-                                url: link.href,
-                                index: -1,
-                            });
-                        });
-                        localChapters = localChapters.concat(
-                            volumeChapters.reverse()
-                        );
-                    }
-                    return localChapters;
+        await this.page.click("main > div > div:nth-of-type(2) > button", {
+            delay: 500
+        })
+        await this.page.waitForFunction(`document.querySelector("main > div > div:nth-of-type(2) > button").disabled == false`)
+
+        let chapters: ChapterSkeleton[] = await this.page.$$eval("main > div > div:nth-of-type(2) > div:nth-of-type(2) > a", (eles) => {
+            return eles.map(a => {
+                return {
+                    title: (a.querySelector("div > div > h3") as HTMLHeadingElement).innerText.trim(),
+                    url: a.href,
+                    index: -1
                 }
-            );
-        } else {
-            chapters = await this.page.$$eval(
-                "div#manga-chapters-holder ul.main li a",
-                (elements) => {
-                    return elements.map((element) => {
-                        return {
-                            title: element.innerText.trim(),
-                            url: element.href,
-                            index: -1,
-                        };
-                    });
-                }
-            );
-            chapters = chapters.reverse();
-        }
+            })
+        })
+        chapters = chapters.reverse()
 
         for (let i = 0; i < chapters.length; i++) {
             chapters[i]!.index = i;
         }
 
-        return chapters;
+        return chapters
     }
 
     async scrapeChapter(
@@ -118,7 +90,7 @@ export default class WoopreadComScraper extends Scraper {
         return this.scrapePageHTML(
             page,
             chapter,
-            "div.reading-content",
+            "main main > div > div:nth-of-type(1)",
             this.scrapingOps
         );
     }

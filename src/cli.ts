@@ -238,7 +238,7 @@ export async function makeUpdateEpubSelectionPrompt(): Promise<UpdateEpubOptions
         {
             type: "file-tree-selection",
             enableGoUpperDirectory: true,
-            name: "readPath",
+            name: "epubPath",
             message: "Select the epub to update (must have been created with WTE):\n",
             root: download(),
             onlyShowValid: true,

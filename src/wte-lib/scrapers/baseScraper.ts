@@ -36,7 +36,7 @@ export abstract class Scraper {
             timeout: scrapingOps.timeout,
         });
 
-        await page.waitForSelector(contentSelector);
+        await page.waitForSelector(contentSelector)
 
         let html = await page.$eval(contentSelector, (ele) => ele.innerHTML);
 

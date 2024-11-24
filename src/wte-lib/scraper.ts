@@ -98,6 +98,7 @@ export async function processAndWriteChapters(
 
             let tries = 0;
             let success = false;
+
             while (!success && tries < MAX_TRIES) {
                 try {
                     let content = await scraper.scrapeChapter(
@@ -118,6 +119,7 @@ export async function processAndWriteChapters(
 
             tries = 0;
             success = false;
+
             while (!success && tries < MAX_TRIES) {
                 try {
                     let parsedItems = await parseChapter(
@@ -140,6 +142,7 @@ export async function processAndWriteChapters(
             }
 
             let id = uuidv4();
+
             await writeFile(
                 join(stagingPath, "OEBPS", TEXT_DIR, `${id}.xhtml`),
                 createChapterXHTML(chapter)

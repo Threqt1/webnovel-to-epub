@@ -34,8 +34,6 @@ import chalk from "chalk";
 
 /**
  * TODO:
- * add logging capabilities
- * add the thing to update current epub
  * create README.md
  * test manga functionality (test sharp)
  */
@@ -73,7 +71,7 @@ async function main() {
 
         await CONNECTION_INFO.browser.close()
 
-        printLog("Cllearing temporary directory...")
+        printLog("Clearing temporary directory...")
 
         await clearStagingDirectory(TEMP_FILE_PATH)
 
@@ -109,7 +107,8 @@ async function handleScrapeSingle(
 
     let metadata = await getNovelMetadata(scraper);
 
-    printLog(`${chalk.bold("Title:")} ${metadata.title}\n${chalk.bold("Author:")} ${metadata.author}`)
+    printLog(`${chalk.bold("Title:")} ${metadata.title}`)
+    printLog(`${chalk.bold("Author:")} ${metadata.author}`)
 
     printLog(`Obtaining cover image...`)
     let coverImage = await getNovelCoverImage(
@@ -124,6 +123,7 @@ async function handleScrapeSingle(
     printLog(`Scraping table of contents...`)
 
     let chapters = await scraper.getAllChapters();
+    let decimalLength = `${chapters.length}`.length
 
     printLog(`Got ${chapters.length} chapters. Beginning to scrape (this may take a while)...`)
 
@@ -139,7 +139,7 @@ async function handleScrapeSingle(
 
     return {
         metadata,
-        chapters: chapterItems.sort((a, b) => a.index - b.index).map(r => { return { ...r, index: parseInt(`1${r.index}`) } }),
+        chapters: chapterItems.sort((a, b) => a.index - b.index).map(r => { return { ...r, index: parseFloat(`0.${`${r.index}`.padStart(decimalLength, '0')}`) } }),
         items: allItems,
     };
 }
@@ -194,6 +194,7 @@ async function handleScrapeMultiple(
         printLog(`Scraping table of contents...`)
 
         let chapters = await scraper.getAllChapters();
+        let decimalLength = `${chapters.length}`.length
 
         printLog(`Got ${chapters.length} chapters. Beginning to scrape (this may take a while)...`)
         let [chapterItems, allItems] = await processAndWriteChapters(
@@ -209,7 +210,7 @@ async function handleScrapeMultiple(
         chapters.push(
             ...chapterItems
                 .map((r) => {
-                    return { ...r, index: parseInt(`${indexIncrement}${r.id}`) };
+                    return { ...r, index: parseFloat(`${indexIncrement}.${`${r.index}`.padStart(decimalLength, '0')}`) };
                 })
         );
 
@@ -244,13 +245,23 @@ async function handleUpdateEpub(imageOptions: ImageOptions, parsingType: Parsing
 
         let scraper = await getScraperForURL(url, CONNECTION_INFO, scrapingOptions)
         let chapterList = await scraper.getAllChapters()
+        let decimalLength = `${chapterList.length}`.length
+
+        for (let i = 0; i < webnovel.chapters.length; i++) {
+            let chapter = webnovel.chapters[i]!
+            let realChapter = chapterList.find(r => r.url === chapter.url)
+            if (realChapter) {
+                webnovel.chapters[i]!.index = parseFloat(`${indexIncrement}.${`${realChapter.index}`.padStart(decimalLength, '0')}`)
+            }
+        }
+
         let newChapters = chapterList.filter(r => !webnovel.chapters.find(i => i.url === r.url))
 
         printLog(`Got ${newChapters.length} new chapters. Scraping and parsing...`)
 
         let [newChapterItems, newItems] = await processAndWriteChapters(CONNECTION_INFO, scraper, TEMP_FILE_PATH, newChapters, scrapingOptions, imageOptions, parsingType)
 
-        webnovel.chapters.push(...newChapterItems.map(r => { return { ...r, index: parseInt(`${indexIncrement}${r.index}`) } }))
+        webnovel.chapters.push(...newChapterItems.map(r => { return { ...r, index: parseFloat(`${indexIncrement}.${`${r.index}`.padStart(decimalLength, '0')}`) } }))
         webnovel.items.push(...newItems)
 
         indexIncrement += 1
@@ -275,9 +286,8 @@ async function handleWriteEpub(webnovel: Webnovel, savePath: string) {
 main();
 
 // async function test() {
-//     // let stagingPath = TEMP_FILE_PATH;
-//     // await createStagingDirectory(stagingPath);
-
+//     let stagingPath = TEMP_FILE_PATH;
+//     await createStagingDirectory(stagingPath);
 //     let scrapingOps = { concurrency: 3, timeout: 3000 };
 //     let imageOps = {
 //         quality: 80,
@@ -288,75 +298,14 @@ main();
 //     };
 //     let conn = await makeNewConnection();
 //     let scraper = await getScraperForURL(
-//         "https://novelbin.me/novel-book/rakuin-no-monshou",
+//         "https://woopread.com/series/warriors-ballad",
 //         conn,
 //         scrapingOps
 //     );
-//     // let metadata = await getNovelMetadata(scraper);
-//     // let chapterList = await getChapterList(scraper);
-//     // let coverImage = await getNovelCoverImage(
-//     //     scraper,
-//     //     conn,
-//     //     stagingPath,
-//     //     scrapingOps,
-//     //     imageOps
-//     // );
-//     // let [chapterItems, otherItems] = await processAndWriteChapters(
-//     //     conn,
-//     //     scraper,
-//     //     stagingPath,
-//     //     chapterList,
-//     //     scrapingOps,
-//     //     imageOps,
-//     //     ParsingType.WithImage
-//     // );
+//     let metadata = await getNovelMetadata(scraper);
+//     let chapters = (await scraper.getAllChapters()).slice(0, 3)
 
-//     // let items = otherItems.concat(chapterItems);
-//     // metadata.coverImage = coverImage;
-//     // await createEpub(
-//     //     metadata,
-//     //     chapterItems,
-//     //     items,
-//     //     stagingPath,
-//     //     `${slugify.default(metadata.title, " ")}.epub`
-//     // );
-
-//     // await conn.browser.close();
-
-//     // await clearStagingDirectory(stagingPath);
-
-//     let chapterList = await scraper.getAllChapters();
-
-//     let novel = await unzipAndParseEpub(
-//         "Rakuin no Monshou.epub",
-//         TEMP_FILE_PATH
-//     );
-
-//     let not_added_chapters = chapterList.filter(
-//         (r) => !novel.chapters.find((t) => t.url == r.url)
-//     );
-
-//     let [newChapters, newItems] = await processAndWriteChapters(
-//         conn,
-//         scraper,
-//         TEMP_FILE_PATH,
-//         not_added_chapters,
-//         scrapingOps,
-//         imageOps,
-//         ParsingType.WithImage
-//     );
-
-//     await createEpub(
-//         novel.metadata,
-//         [...novel.chapters, ...newChapters].sort((a, b) => a.index - b.index),
-//         [...novel.items, ...newItems, ...newChapters],
-//         TEMP_FILE_PATH,
-//         "testing.epub"
-//     );
-
-//     await conn.browser.close();
-
-//     return;
+//     let [chapterItems, otherItems] = await processAndWriteChapters(conn, scraper, stagingPath, chapters, scrapingOps, imageOps, ParsingType.WithImage)
 // }
 
-// test();
+// test()

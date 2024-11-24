@@ -60,7 +60,7 @@ export const JSONSchema = Yup.object().shape({
                 type: Yup.string().required(),
             }),
             id: Yup.string().required(),
-            tocUrls: Yup.array().of(Yup.string()).required()
+            tocUrls: Yup.array().of(Yup.string().required()).required()
         })
         .required(),
     chapters: Yup.array()
@@ -69,7 +69,7 @@ export const JSONSchema = Yup.object().shape({
                 type: Yup.string().required(),
                 id: Yup.string().required(),
                 path: Yup.string().required(),
-                index: Yup.number().integer().required(),
+                index: Yup.number().required(),
                 title: Yup.string().required(),
                 url: Yup.string().url().required(),
             })
