@@ -204,6 +204,7 @@ export async function makeImageOptionsPrompt(): Promise<ImageOptions> {
             when: (answers) => {
                 return answers["shouldResize"] === true;
             },
+            default: 1920
         },
         {
             type: "number",
@@ -215,6 +216,7 @@ export async function makeImageOptionsPrompt(): Promise<ImageOptions> {
             when: (answers) => {
                 return answers["shouldResize"] === true;
             },
+            default: 1080
         },
     ]);
 
