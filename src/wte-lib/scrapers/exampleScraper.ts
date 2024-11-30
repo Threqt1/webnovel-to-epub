@@ -3,6 +3,7 @@ import { type ChapterSkeleton, type ScrapingOptions } from "../structs.js";
 import type { ConnectResult, PageWithCursor } from "puppeteer-real-browser";
 
 /**
+ * Clone this file and fill in anything that needs changing
  * After done, instantiate this scraper in the array in scraperBucket.ts
  */
 export default class ExampleScraper extends Scraper {
@@ -15,7 +16,7 @@ export default class ExampleScraper extends Scraper {
     }
 
     /**
-     * Method used instead of constructor - DONT MESS WITH IT
+     * Method used instead of constructor
      * @param url URL that the scraper will handle
      * @param connectionInfo Wrapper for puppeteer info
      * @param scrapingOps Scraping options
@@ -26,7 +27,7 @@ export default class ExampleScraper extends Scraper {
         scrapingOps: ScrapingOptions
     ): Promise<void> {
         this.page = connectionInfo.page;
-        this.url = url + "#tab-chapters-title";
+        this.url = url //modify url if you need to navigate to some base page
 
         await this.page.goto(this.url, {
             waitUntil: "networkidle0",
