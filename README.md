@@ -1,9 +1,14 @@
-# webnovel-to-epub
+<h1 align="center">Webnovel To Epub</h1>
 
-A small CLI application utilizing puppeteer to scrape webnovels into epubs
+A simple CLI program that scrapes webnovels into the EPub format.
 
-Mostly made so I can fuel my webnovel addiction on mobile without needing internet
+## Installation & Usage
+- Clone the repository and install dependencies using `npm install`
+- Build the app using `npm run build` (only have to do this once) 
+- Run the app using `npm run app`
+- Follow the interactive prompt in the console
 
-Looking to create more parsers and expand features (such as combining multiple parts of a novel from different websites)
-
-Made for Windows
+## Features
+- Scrape and parse webnovels (from one source or multiple sources at once)
+- Automatically handle images and basic optimization (resizing and compression)
+- Limited support for updating EPubs (if they were already scraped with the app) 

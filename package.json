@@ -4,7 +4,9 @@
     "description": "",
     "main": "index.js",
     "scripts": {
-        "start": "rimraf ./out && tsc && node out/main.js"
+        "build": "rimraf ./out && tsc",
+        "app": "node out/main.js",
+        "test": "rimraf ./out && tsc && node out/main.js"
     },
     "keywords": [],
     "author": "",
