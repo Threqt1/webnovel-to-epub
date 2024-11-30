@@ -14,4 +14,4 @@ A simple CLI program that scrapes webnovels into the EPub format.
 - Limited support for updating EPubs (if they were already scraped with the app) 
 
 ## Making Your Own Scraper
-- Read the exampleScraper.ts file **thoroughly**
+- Read the `exampleScraper.ts` file **thoroughly**
