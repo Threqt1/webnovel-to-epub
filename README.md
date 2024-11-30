@@ -12,3 +12,6 @@ A simple CLI program that scrapes webnovels into the EPub format.
 - Scrape and parse webnovels (from one source or multiple sources at once)
 - Automatically handle images and basic optimization (resizing and compression)
 - Limited support for updating EPubs (if they were already scraped with the app) 
+
+## Making Your Own Scraper
+- Read the exampleScraper.ts file **thoroughly**
