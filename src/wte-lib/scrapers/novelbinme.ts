@@ -61,12 +61,12 @@ export default class NovelbinMeScraper extends Scraper {
 
     async getAllChapters(): Promise<ChapterSkeleton[]> {
         await this.page.waitForSelector(
-            "div.tab-content div.panel-body div.row ul.list-chapter a"
+            "div.chapter-archive-row a"
         );
 
         let chapters: ChapterSkeleton[] = [];
         chapters = await this.page.$$eval(
-            "div.tab-content div.panel-body div.row ul.list-chapter a",
+            "div.chapter-archive-row a",
             (links) => {
                 return links.map((link) => {
                     return {
@@ -99,5 +99,9 @@ export default class NovelbinMeScraper extends Scraper {
 
     matchUrl(url: string): boolean {
         return this.baseMatchURL(url, ["novelbin.me"]);
+    }
+
+    customCSS(): string {
+        return ``;
     }
 }

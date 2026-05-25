@@ -35,6 +35,7 @@ import chalk from "chalk";
 /**
  * TODO:
  * create README.md
+ * Allow for selection of what chapters to parse and make
  * test manga functionality (test sharp)
  */
 
@@ -288,7 +289,7 @@ main();
 // async function test() {
 //     let stagingPath = TEMP_FILE_PATH;
 //     await createStagingDirectory(stagingPath);
-//     let scrapingOps = { concurrency: 3, timeout: 3000 };
+//     let scrapingOps = { concurrency: 3, timeout: 5000 };
 //     let imageOps = {
 //         quality: 80,
 //         shouldResize: false,
@@ -298,14 +299,16 @@ main();
 //     };
 //     let conn = await makeNewConnection();
 //     let scraper = await getScraperForURL(
-//         "https://woopread.com/series/warriors-ballad",
+//         "https://anyflip.com/weler/tcma/",
 //         conn,
 //         scrapingOps
 //     );
 //     let metadata = await getNovelMetadata(scraper);
-//     let chapters = (await scraper.getAllChapters()).slice(0, 3)
+//     let chapters = (await scraper.getAllChapters())
+//     chapters = chapters.slice(0, 3)
 
 //     let [chapterItems, otherItems] = await processAndWriteChapters(conn, scraper, stagingPath, chapters, scrapingOps, imageOps, ParsingType.WithImage)
+//     console.log(otherItems)
 // }
 
 // test()

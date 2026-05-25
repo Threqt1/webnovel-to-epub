@@ -1,5 +1,6 @@
 import { join } from "path";
 
+export const EXCLUDE_TOC_PREFIX = "!EXCLUDE"
 export const TEMP_FILE_PATH = join(import.meta.dirname, ".", "temp");
 export const EPUB_ITEM_TYPES = {
     img: (extension: string) => `image/${extension}`,

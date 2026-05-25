@@ -24,6 +24,7 @@ export abstract class Scraper {
         parsingType: ParsingType
     ): Promise<string>;
     abstract matchUrl(url: string): boolean;
+    abstract customCSS(): string;
 
     protected async scrapePageHTML(
         page: PageWithCursor,

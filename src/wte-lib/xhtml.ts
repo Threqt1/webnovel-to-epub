@@ -1,4 +1,124 @@
+import { EXCLUDE_TOC_PREFIX } from "./strings.js";
 import type { Chapter, ChapterEpubItem, EpubItem, Metadata } from "./structs.js";
+
+export function createDefaultCSS(): string {
+  return `
+  @charset "UTF-8";
+
+html {
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  margin: 0 5%;
+  padding: 0;
+  line-height: 1.5;
+  font-family: serif;
+}
+
+/* Paragraphs */
+p {
+  margin: 0;
+  text-indent: 1.5em;
+}
+
+/* First paragraph after headings/scenes should usually not indent */
+h1 + p,
+h2 + p,
+h3 + p,
+hr + p,
+.no-indent {
+  text-indent: 0;
+}
+
+/* Headings */
+h1,
+h2,
+h3 {
+  font-family: serif;
+  font-weight: normal;
+  line-height: 1.2;
+  text-align: center;
+  margin: 2em 0 1em 0;
+  text-indent: 0;
+}
+
+h1 {
+  font-size: 1.6em;
+}
+
+h2 {
+  font-size: 1.3em;
+}
+
+h3 {
+  font-size: 1.1em;
+}
+
+/* Scene breaks */
+hr {
+  border: none;
+  margin: 1.5em 0;
+  text-align: center;
+}
+
+hr::after {
+  content: "* * *";
+}
+
+/* Images */
+img {
+  max-width: 100%;
+  height: auto;
+}
+
+figure {
+  margin: 1em 0;
+  text-align: center;
+}
+
+figcaption {
+  font-size: 0.9em;
+  font-style: italic;
+  margin-top: 0.5em;
+}
+
+/* Blockquotes */
+blockquote {
+  margin: 1em 2em;
+  font-style: italic;
+}
+
+/* Lists */
+ul,
+ol {
+  margin: 1em 0 1em 2em;
+  padding: 0;
+}
+
+li {
+  margin: 0.25em 0;
+}
+
+/* Tables */
+table {
+  border-collapse: collapse;
+  margin: 1em auto;
+}
+
+td,
+th {
+  padding: 0.25em 0.5em;
+}
+
+/* Links */
+a {
+  color: inherit;
+  text-decoration: underline;
+}
+  `
+}
 
 export function createContainerXML(): string {
   return `<?xml version="1.0" encoding="UTF-8"?>
@@ -18,7 +138,7 @@ export function createChapterXHTML(chapter: Chapter): string {
   <title>${chapter.title}</title>
 </head>
 <body>
-    <h1>${chapter.title}</h1>
+    ${!chapter.title.startsWith(EXCLUDE_TOC_PREFIX) ? `<h1>${chapter.title}</h1>` : ``}
     ${chapter.content}
 </body>
 </html>`;
@@ -58,6 +178,11 @@ export function createTocNCX(
   metada: Metadata,
   chapters: ChapterEpubItem[],
 ): string {
+  let newChapters = chapters.filter(r => !r.title.startsWith(EXCLUDE_TOC_PREFIX))
+  if (newChapters.length == 0) {
+    newChapters.push(chapters[0]!);
+    newChapters[0]!.title = "Start"
+  }
   return `<?xml version='1.0' encoding='utf-8'?>
 <ncx xmlns="http://www.daisy.org/z3986/2005/ncx/" version="2005-1" xml:lang="en">
   <head>
@@ -70,7 +195,7 @@ export function createTocNCX(
   <text>${metada.title}</text>
   </docTitle>
   <navMap>
-    ${chapters.map((r, i) => `<navPoint id="c_${i}" playOrder="${i}">
+    ${newChapters.map((r, i) => `<navPoint id="c_${i}" playOrder="${i}">
       <navLabel>
       <text>${r.title}</text>
       </navLabel>
@@ -84,6 +209,11 @@ export function createTOCXHTML(
   metadata: Metadata,
   chapters: ChapterEpubItem[]
 ): string {
+  let newChapters = chapters.filter(r => !r.title.startsWith(EXCLUDE_TOC_PREFIX))
+  if (newChapters.length == 0) {
+    newChapters.push(chapters[0]!);
+    newChapters[0]!.title = "Start"
+  }
   return `<?xml version="1.0" encoding="UTF-8" standalone="no"?>
   <!DOCTYPE html>
   <html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops" xml:lang="en" lang="en">
@@ -93,7 +223,7 @@ export function createTOCXHTML(
     <body>
       <nav id="toc" epub:type="toc">
         <ol>
-          ${chapters.map(r => `<li>
+          ${newChapters.map(r => `<li>
               <a href="${r.path}">${r.title}</a>
             </li>`).join("\n")}
         </ol>

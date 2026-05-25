@@ -8,6 +8,7 @@ import {
     type ScrapingOptions,
 } from "./structs.js";
 import type { PageWithCursor } from "puppeteer-real-browser";
+import { createDefaultCSS } from "./xhtml.js";
 
 const BANNED_TAGS = [
     "script",
@@ -27,6 +28,7 @@ const BANNED_TAGS = [
 export async function parseChapter(
     page: PageWithCursor,
     chapter: Chapter,
+    customCSS: string,
     stagingPath: string,
     parsingType: ParsingType,
     scrapingOps: ScrapingOptions,
@@ -52,7 +54,13 @@ export async function parseChapter(
 
     let items = await parseImages(page, chapter, stagingPath, $, scrapingOps, imageOps);
 
-    chapter.content = $.html();
+    if ($("head").length == 0) {
+        $("html").prepend("<head></head>")
+    }
+
+    $("head").append(`<style type="text/css">${customCSS.length > 0 ? customCSS.trim() : createDefaultCSS().trim()}</style>`)
+
+    chapter.content = $.xml();
 
     return items;
 }

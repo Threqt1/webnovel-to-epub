@@ -101,4 +101,8 @@ export default class WoopreadComScraper extends Scraper {
             "noveltranslationhub.com",
         ]);
     }
+
+    customCSS(): string {
+        return ``;
+    }
 }

@@ -112,4 +112,8 @@ export default class NoveloonComScraper extends Scraper {
     matchUrl(url: string): boolean {
         return this.baseMatchURL(url, ["noveloon.com"]);
     }
+
+    customCSS(): string {
+        return ``;
+    }
 }

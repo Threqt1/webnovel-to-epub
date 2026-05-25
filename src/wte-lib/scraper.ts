@@ -125,6 +125,7 @@ export async function processAndWriteChapters(
                     let parsedItems = await parseChapter(
                         page,
                         chapter,
+                        scraper.customCSS(),
                         stagingPath,
                         parsingType,
                         scrapingOps,
@@ -182,7 +183,7 @@ export async function downloadImagesLocally(
         );
 
         page.on("response", async (response) => {
-            if (fileURLs.length === 0) {
+            if (fileURLs.length == 0) {
                 clearTimeout(timeoutResolve);
                 resolve(true);
             }
@@ -211,6 +212,10 @@ export async function downloadImagesLocally(
                         ),
                     };
                     fileURLs = fileURLs.filter((r) => r != response.url());
+                    if (fileURLs.length == 0) {
+                        clearTimeout(timeoutResolve);
+                        resolve(true);
+                    }
                 } catch (e) { }
             }
         });
