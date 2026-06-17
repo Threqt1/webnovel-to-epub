@@ -48,7 +48,7 @@ export async function parseChapter(
     });
 
     if (parsingType === ParsingType.WithFormat) {
-        chapter.content = $.html();
+        chapter.content = $.xml();
         return [];
     }
 
