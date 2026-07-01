@@ -2,6 +2,7 @@ import { Scraper } from "./baseScraper.js";
 import { type ChapterSkeleton, type ScrapingOptions } from "../structs.js";
 import type { ConnectResult, PageWithCursor } from "puppeteer-real-browser";
 import { EXCLUDE_TOC_PREFIX } from "../strings.js";
+import path from "path";
 
 export default class AnyflipScraper extends Scraper {
     page!: PageWithCursor; // needed
@@ -26,7 +27,7 @@ export default class AnyflipScraper extends Scraper {
         scrapingOps: ScrapingOptions
     ): Promise<void> {
         this.page = connectionInfo.page;
-        let end = url.split("/").filter(r => r.trim().length > 0).slice(-2)
+        let end = url.split("/").filter(r => r.trim().length > 0).slice(2, 4)
         this.url = "https://online.anyflip.com/" + end.join("/") //modify url if you need to navigate to some base page
 
         const response = await this.page.goto(this.url + "/mobile/javascript/config.js", {
@@ -109,7 +110,14 @@ export default class AnyflipScraper extends Scraper {
 
         return image;
         */
-        return "about:blank"
+        let explicitURLsRegex = /"n":\[".*?"\]/g;
+        let matches = this.bookConfig.match(explicitURLsRegex)
+        if (!matches) {
+            return this.url + "/files/mobile/" + `1.jpg`
+        } else {
+            let match = matches[0]!.trim().split(":")[1]!.replace(/\[|\]|\"/g, "")
+            return this.url + "/files/large/" + path.basename(match)
+        }
     }
 
     async getAllChapters(): Promise<ChapterSkeleton[]> {
@@ -137,7 +145,7 @@ export default class AnyflipScraper extends Scraper {
             return []
         }
 
-        let explicitURLsRegex = /"n":\[".*?"\]/;
+        let explicitURLsRegex = /"n":\[".*?"\]/g;
         matches = this.bookConfig.match(explicitURLsRegex)
         let chapterParts: ChapterSkeleton[] = []
         if (!matches) {
@@ -150,11 +158,10 @@ export default class AnyflipScraper extends Scraper {
             }
         } else {
             for (let i = 0; i < matches.length; i++) {
-                match = matches[i]!.trim().replace(/\[|\]|\"/g, "")
-                let url = match.split(":")[1]!.trim().replace(/\[|\]|\"/g, "")
+                let url = matches[i]!.trim().split(":")[1]!.replace(/\[|\]|\"/g, "")
                 chapterParts.push({
                     title: `${EXCLUDE_TOC_PREFIX} Page ${i + 1}`,
-                    url: this.url + "/files/large/" + url,
+                    url: this.url + "/files/large/" + path.basename(url),
                     index: i
                 })
             }
